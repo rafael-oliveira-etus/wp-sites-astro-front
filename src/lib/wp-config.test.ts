@@ -3,7 +3,10 @@ import { normalizeBoltConfig } from './wp-config';
 
 describe('normalizeBoltConfig', () => {
   const raw = {
-    site: { name: 'Limite Mais', site_name: 'Limite Mais' },
+    // Mirror the real /bolt/v1/config shape: `site.name` is the theme's constant
+    // display name ("Theme Bolt WP", identical across every tenant), while
+    // `site.site_name` is the actual WordPress blogname (= wp/v2/settings.title).
+    site: { name: 'Theme Bolt WP', site_name: 'Limite Mais' },
     branding: { logo_url: 'https://cdn/logo.webp', favicon_url: 'https://cdn/fav.webp' },
     config: { colors: { defaults: { identity_color: '#ff9a15', footer_bg: '#ff9a15', footer_bg_mob: '#F5EFF7' } } },
   };
@@ -16,8 +19,13 @@ describe('normalizeBoltConfig', () => {
     expect(c.colors.footer_bg_mob).toBe('#F5EFF7');
   });
 
-  it('uses site.name (or site_name) for siteName', () => {
+  it('prefers site.site_name (real blogname) over site.name (theme default)', () => {
+    // site.name is the theme constant "Theme Bolt WP" for every tenant, so the
+    // real per-site title must come from site.site_name.
     expect(normalizeBoltConfig(raw).siteName).toBe('Limite Mais');
+    expect(normalizeBoltConfig({ site: { name: 'Theme Bolt WP', site_name: 'Cardfácil' } }).siteName).toBe('Cardfácil');
+    // falls back to site.name only when site_name is absent or empty
+    expect(normalizeBoltConfig({ site: { name: 'Only Name' } }).siteName).toBe('Only Name');
     expect(normalizeBoltConfig({ site: { site_name: 'X' } }).siteName).toBe('X');
   });
 

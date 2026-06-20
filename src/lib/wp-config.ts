@@ -61,7 +61,10 @@ export function normalizeBoltConfig(raw: unknown): BoltConfig {
       logoUrl: String(branding.logo_url ?? ''),
       faviconUrl: String(branding.favicon_url ?? ''),
     },
-    siteName: String(site.name ?? site.site_name ?? ''),
+    // Prefer site.site_name (the real WP blogname, e.g. "Limite Mais") over
+    // site.name, which the BOLT theme hard-codes to "Theme Bolt WP" for EVERY
+    // tenant. `||` (not `??`) so an empty site_name also falls through to name.
+    siteName: String(site.site_name || site.name || ''),
     tracking: {
       gaId: id('google_analytics'),
       gtmId: id('gtm'),
