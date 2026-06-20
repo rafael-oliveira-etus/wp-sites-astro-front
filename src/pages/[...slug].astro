@@ -73,6 +73,19 @@ if (segments.length === 2 && segments[0] === 'author') {
   listHeading = tag.name;
   listPage = await getPostsPage(deps, { tagId: tag.id, page: pageNum, perPage: 12 });
   if (pageNum > 1 && listPage.posts.length === 0) return Astro.rewrite('/404');
+} else if (segments.length === 2 && segments[0] === 'category') {
+  // WP-native category archive permalink `/category/<slug>` (what the WP nav menu
+  // links to). The single-segment branch below also resolves a bare `/<slug>` as a
+  // category for category-base-removed permalink setups.
+  const slug = segments[1];
+  listBasePath = `/category/${slug}`;
+  canonicalUrl = absoluteUrl(TENANT, pageNum > 1 ? `${listBasePath}/page/${pageNum}` : listBasePath);
+  const category = await getCategoryBySlug(deps, slug);
+  if (!category) return Astro.rewrite('/404');
+  mode = 'list';
+  listHeading = category.name;
+  listPage = await getPostsPage(deps, { categoryId: category.id, page: pageNum, perPage: 12 });
+  if (pageNum > 1 && listPage.posts.length === 0) return Astro.rewrite('/404');
 } else if (segments.length === 1) {
   const slug = segments[0];
   listBasePath = `/${slug}`;
