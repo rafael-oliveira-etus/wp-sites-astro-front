@@ -56,7 +56,7 @@ const nonce = Astro.locals.nonce;
 <!doctype html>
 <html lang={locale} style={cssVars}>
   <head>
-    <BaseHead locale={locale} vertical={vertical} analytics={false} themeColor={c.identity_color} faviconUrl={cfg?.branding.faviconUrl || undefined} siteName={cfg?.siteName || undefined} {...seoProps} />
+    <BaseHead locale={locale} vertical={vertical} analytics={false} themeColor={c.identity_color} faviconUrl={cfg?.branding.faviconUrl || undefined} {...seoProps} siteName={cfg?.siteName || undefined} />
     <slot name="head" />
     {hasTracking(tk) && (
       <Fragment>
