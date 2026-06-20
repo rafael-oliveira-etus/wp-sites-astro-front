@@ -15,6 +15,10 @@ Astro.response.status = 404;
 const locale = TENANT.defaultLocale;
 const display = localeDisplay(TENANT, locale);
 const Layout = TENANT.blog?.wpBaseUrl ? BlogLayout : BaseLayout;
+// Headless WP-REST tenants serve flat permalinks at `/` (there is no `/<locale>`
+// route); the quiz model lived under `/<locale>`. Match the Header's home link
+// so the 404 CTA never points at a non-existent localized path.
+const homeHref = TENANT.blog?.wpBaseUrl ? '/' : localePath(locale);
 ---
 
 <Layout
@@ -28,7 +32,7 @@ const Layout = TENANT.blog?.wpBaseUrl ? BlogLayout : BaseLayout;
     <p class="status">404</p>
     <h1>{display.notFound.heading}</h1>
     <p class="subheading">{display.notFound.subheading}</p>
-    <a class="cta" href={localePath(locale)}>{display.notFound.cta}</a>
+    <a class="cta" href={homeHref}>{display.notFound.cta}</a>
   </main>
   <Footer locale={locale} />
 </Layout>
