@@ -1,64 +1,72 @@
 # frontend
 
-Multi-tenant **Astro 6 hybrid** app — quiz/lead-gen funnel (prerendered) +
-ad-monetized blog (SSR) — that deploys as **one Cloudflare Worker per tenant**
-(`frontend-<tenant>`).
+A generic **Astro 6 (SSR)** frontend for the WordPress REST API. **One Cloudflare
+Worker serves every site**; the active tenant is resolved per-request from the
+request `Host`. Content, branding (favicon/logo/OG) and the sitemap all come from
+each tenant's WordPress origin — nothing is baked per build and there is no
+service worker.
 
 ## Rendering + tenant model
 
-- `output: 'server'` + `@astrojs/cloudflare` v13 adapter → a Worker. Per-route
-  `export const prerender = true` makes quiz / vertical hubs / author pages static
-  assets; blog post routes render SSR per-request. `imageService: 'passthrough'`
-  (no sharp at request time on Workers).
-- **One tenant baked per build.** `TENANT_ID=<id>` selects the tenant; `astro.config.ts`
-  bakes it via `vite.define` (`import.meta.env.TENANT_ID`/`TENANT_JSON`/`TENANT_LOGO_SVG`/
-  `TENANT_CONTENT_DIR`/`IMAGE_MANIFEST`/`PUBLIC_IMAGE_BASE`/`MINIFIED_BOOT`) — the
-  workerd prerender sandbox has no `node:fs`/`process.env`, so tenant data must be
-  baked, not read at runtime.
-- Quiz routes **must** keep `prerender = true` — dropping it silently flips them to
-  SSR. (Active invariant; see root `CLAUDE.md`.)
+- `output: 'server'` + `@astrojs/cloudflare` v13 adapter → one Worker. All routes
+  are SSR (no `prerender`). `imageService: 'passthrough'` (no sharp at request time).
+- **No tenant is baked.** `astro.config.ts` is generic. At request time
+  `src/middleware.ts` calls `resolveTenantByHost(host)` (suffix match on each site's
+  `domains`) and sets `Astro.locals.tenant`; components read it from there. Unknown
+  host → 404. In `astro dev` the Host is `localhost`, so it falls back to `TENANT_ID`
+  or the first site.
+- Config for every site lives in `src/lib/sites.config.ts` (`SITES` map). Add a site
+  = add an entry there + two `routes` lines in `wrangler.jsonc` + a `WP_AUTH_<ID>`
+  secret.
 
 ## Layout
 
 | Path | Role |
 |---|---|
-| `src/pages/[locale]/blog/[vertical]/[slug].astro` | SSR blog post |
-| `src/pages/[locale]/blog/[vertical]/[...page].astro` | prerendered paginated vertical hub |
-| `src/pages/[locale]/author/[id]/[...page].astro` | prerendered author page (E-E-A-T) |
-| `src/lib/{schemas,authors,images,markdown,seo}.ts` | post/tenant schemas, author resolution, image manifest, render, JSON-LD |
-| `tenants/<id>/tenant.yaml` | per-tenant config (seo, display, editorial, authors, ads) |
-| `tenants/<id>/assets/` | logo + blog images (`blog-images/` is gitignored, R2-bound) |
-| `sites.manifest.json` | fleet registry (per-site Worker/routes/KV/ring) — deploy |
-| `scripts/` | `gen-wrangler.mjs`, `fleet-healthcheck.mjs`, `post-images.mjs`, `optimize-tenant-assets.mjs` |
+| `src/lib/sites.config.ts` | `SITES` map + `resolveTenantByHost` / `fallbackTenant` |
+| `src/middleware.ts` | resolves tenant from Host → `Astro.locals.tenant`; 404 unknown host |
+| `src/pages/index.astro` | SSR homepage feed (WP) |
+| `src/pages/[...slug].astro` | SSR post / page / author / category (WP), else 404 |
+| `src/lib/wp*.ts` | WordPress REST client, cache, normalize, menus, SEO |
+| `src/lib/wp-runtime.ts` | per-request deps; per-tenant `WP_AUTH_<ID>`; WP_CACHE KV |
+| `src/components/blog/Wp*.astro` | WP list + post views |
+| `public/` | `_headers` / `_redirects` (shared edge config) |
 
 `@etus/ads` (GAM/GPT inline bootstrap) and `@etus/seo` are live workspace packages
-(`vite.ssr.noExternal`).
+(`vite.ssr.noExternal`), vendored in `packages/`.
 
 ## Commands
 
 ```bash
-TENANT_ID=limitemais pnpm --filter frontend dev       # astro dev (defaults to limitemais)
-TENANT_ID=<id>        pnpm --filter frontend build     # one tenant → dist/
-                      pnpm --filter frontend check      # astro check
-node scripts/post-images.mjs --tenant <id>             # download + AVIF/WebP optimize blog images
+pnpm dev                                  # astro dev on :4321 (TENANT_ID fallback → limitemais)
+pnpm build                                # one generic build → dist/
+pnpm check                                # astro check
+pnpm test                                 # vitest
+node scripts/shoot.mjs http://localhost:8788   # Playwright screenshots (desktop+mobile)
 ```
 
-## Content
+Preview the production build in workerd (resolve by Host):
 
-Blog content is imported from the WordPress network by `apps/content-import`
-(registry-driven, multilingual) into `tenants/<id>/content/`. Images are downloaded
-+ optimized by `scripts/post-images.mjs` (R2-ready; set `PUBLIC_IMAGE_BASE` to serve
-derivatives from R2).
+```bash
+pnpm build && cp .dev.vars dist/server/.dev.vars
+pnpm exec wrangler dev -c dist/server/wrangler.json --port 8788
+curl -H "Host: limitemais.com" http://localhost:8788/      # 200
+curl -H "Host: unknown.example" http://localhost:8788/     # 404
+```
+
+## Content + branding
+
+Everything user-facing is served from WordPress at request time: posts/pages via
+the REST API (`src/lib/wp.ts`), branding (favicon/logo/OG) via the BOLT config API
+(`src/lib/wp-config.ts`), images linked from the WP/CDN source (never downloaded),
+and the sitemap from the WP origin (`<link rel=sitemap>` → `${wpBaseUrl}/sitemap_index.xml`).
 
 ## Deploy
 
-Per-site isolated fleet — **not** Cloudflare Pages. `sites.manifest.json` →
-`scripts/gen-wrangler.mjs` (patches the adapter's built `dist/server/wrangler.json`
-with each site's name/routes/SESSION-KV) → `.github/workflows/deploy-fleet.yml`
-(validate → canary ring 0 → manual gate → rings). The top-level `wrangler.jsonc` is
-for local `dev` / `cf-typegen` only.
+One Worker (`frontend`) with one `routes` pair (apex + www) per site in
+`wrangler.jsonc`, shared `SESSION` + `WP_CACHE` KV, and a `WP_AUTH_<ID>` secret per
+site (`wrangler secret put WP_AUTH_<ID>`). Replace the placeholder KV ids with real
+ones before `wrangler deploy`.
 
-Full model + rollback + Workers-for-Platforms scale trigger:
-[`docs/blog-platform/fleet-deploy.md`](../../docs/blog-platform/fleet-deploy.md).
-Architecture + invariants: root [`CLAUDE.md`](../../CLAUDE.md) and
-[`docs/blog-platform/`](../../docs/blog-platform/).
+> Infra note: each tenant's `blog.wpBaseUrl` must point at the real WordPress origin,
+> not the public domain the Worker serves, or the SSR fetch loops back on itself.
