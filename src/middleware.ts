@@ -11,6 +11,7 @@ import {
 } from './lib/cache';
 import { resolveAdsMode } from './lib/runtime';
 import { CSP_HEADER, cspForNonce } from './lib/security';
+import { resolveTenantByHost, fallbackTenant } from './lib/sites.config';
 
 /** Read the Cloudflare runtime env (newer API) defensively — null in non-Worker
  *  contexts (astro check / node dev) so it degrades instead of throwing. */
@@ -31,11 +32,28 @@ export const onRequest = defineMiddleware(async (context, next) => {
   if (context.isPrerendered) return next();
 
   const req = context.request;
+
+  // Tenant identity is resolved per-request from the Host (generic multi-tenant
+  // worker — one build serves every site). Unknown host → 404. In dev the Host is
+  // `localhost` (no match), so fall back to TENANT_ID or the first site to keep
+  // `astro dev` working; preview/prod must send a real Host.
+  let tenant = resolveTenantByHost(req.headers.get('host'));
+  if (!tenant && import.meta.env.DEV) {
+    tenant = fallbackTenant(process.env.TENANT_ID);
+  }
+  if (!tenant) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: { 'content-type': 'text/plain; charset=utf-8' },
+    });
+  }
+  context.locals.tenant = tenant;
+
   const env = await getRuntimeEnv();
 
   // Environment + ad mode — safe-by-default: noindex unless 'production'; ad mode
   // defaults prod→live, non-prod→'test' (sample network, no billing), forceable to
-  // 'off' via ADS_MODE. Tenant identity is BAKED at build (no Host/site resolution).
+  // 'off' via ADS_MODE. Tenant identity is resolved above from the request Host.
   const environment = (env?.ENVIRONMENT as string | undefined) ?? 'development';
   const isProduction = environment === 'production';
   const adsMode = resolveAdsMode(env?.ADS_MODE as string | undefined, isProduction);

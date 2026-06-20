@@ -116,6 +116,8 @@ interface Window {
  */
 declare namespace App {
   interface Locals {
+    /** Active tenant for this request, resolved from the Host by middleware. */
+    tenant: import('./lib/schemas').Tenant;
     /** Device class (CF-Device-Type → UA fallback, from @etus/ads). Drives
      *  server-side ad gating + the device-keyed edge cache. */
     deviceClass: import('@etus/ads').DeviceClass;
