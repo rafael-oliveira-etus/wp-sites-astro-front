@@ -7,10 +7,6 @@ declare module 'cloudflare:workers' {
   export const env: Record<string, unknown>;
 }
 
-interface ImportMetaEnv {
-  readonly PUBLIC_BUILD_ID: string;
-}
-
 interface EtusTrackPayload {
   event: string;
   event_id: string;

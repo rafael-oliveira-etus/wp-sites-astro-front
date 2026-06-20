@@ -5,21 +5,6 @@
 /_astro/*
   Cache-Control: public, max-age=31536000, immutable
 
-# Static well-known assets
-/favicon.svg
-  Cache-Control: public, max-age=86400
-/apple-touch-icon.png
-  Cache-Control: public, max-age=86400
-/og-default.*
-  Cache-Control: public, max-age=86400
-/logo.*
-  Cache-Control: public, max-age=86400
-
-# Service worker — never cache
-/sw.js
-  Cache-Control: no-cache, no-store, must-revalidate
-  Service-Worker-Allowed: /
-
 # HTML — short TTL with revalidation
 /*.html
   Cache-Control: public, max-age=0, must-revalidate

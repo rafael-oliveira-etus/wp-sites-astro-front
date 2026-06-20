@@ -17,8 +17,8 @@ type Props = SeoProps & {
   vertical?: Vertical | null;
   analytics?: boolean;
   themeColor?: string;
-  /** Absolute favicon URL from the headless CMS (BOLT branding). Overrides the
-   *  tenant's static /favicon.svg when present. */
+  /** Absolute favicon URL from the headless CMS (BOLT branding). The only favicon
+   *  source — no local fallback. When absent, no icon link is emitted. */
   faviconUrl?: string;
 };
 
@@ -30,7 +30,7 @@ const {
   faviconUrl,
   title,
   description,
-  image = '/og-default.png',
+  image,
   imageAlt,
   imageType,
   type = 'website',
@@ -56,10 +56,12 @@ const fullTitle = !title || title === display.siteName
 
 const finalDescription = description ?? display.description;
 const canonicalUrl = canonical ?? absoluteUrl(TENANT, Astro.url.pathname);
-// `image` may already be absolute (e.g. a WP/CDN-hosted featured image on
-// headless tenants) — only prepend the tenant origin for root-relative paths.
-const imageUrl = /^https?:\/\//.test(image) ? image : absoluteUrl(TENANT, image);
-const resolvedImageType = imageType ?? inferImageType(image);
+// `image` comes from WordPress (yoast.ogImage / featured media) and is absolute.
+// No local fallback: when WP gives us no image we emit no og/twitter image tag.
+const imageUrl = image
+  ? (/^https?:\/\//.test(image) ? image : absoluteUrl(TENANT, image))
+  : undefined;
+const resolvedImageType = image ? (imageType ?? inferImageType(image)) : undefined;
 const finalImageAlt = imageAlt ?? display.siteName;
 
 // Headless tenants get their favicon from the CMS (BOLT branding). Strip any
@@ -167,34 +169,36 @@ const turnstileEnabled =
 {ogAlternateLocales.map((og) => (
   <meta property="og:locale:alternate" content={og} />
 ))}
-<meta property="og:image" content={imageUrl} />
-<meta property="og:image:secure_url" content={imageUrl} />
-<meta property="og:image:type" content={resolvedImageType} />
-<meta property="og:image:width" content="1200" />
-<meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content={finalImageAlt} />
+{imageUrl && (
+  <Fragment>
+    <meta property="og:image" content={imageUrl} />
+    <meta property="og:image:secure_url" content={imageUrl} />
+    <meta property="og:image:type" content={resolvedImageType} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content={finalImageAlt} />
+  </Fragment>
+)}
 {publishedTime && <meta property="article:published_time" content={publishedTime} />}
 {modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
 {author && type === 'article' && <meta property="article:author" content={author} />}
 
-<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:card" content={imageUrl ? 'summary_large_image' : 'summary'} />
 <meta name="twitter:site" content={TENANT.seo.twitterHandle} />
 <meta name="twitter:creator" content={TENANT.seo.twitterHandle} />
 <meta name="twitter:title" content={fullTitle} />
 <meta name="twitter:description" content={finalDescription} />
-<meta name="twitter:image" content={imageUrl} />
-<meta name="twitter:image:alt" content={finalImageAlt} />
+{imageUrl && (
+  <Fragment>
+    <meta name="twitter:image" content={imageUrl} />
+    <meta name="twitter:image:alt" content={finalImageAlt} />
+  </Fragment>
+)}
 
-{faviconUrl ? (
+{faviconUrl && (
   <Fragment>
     <link rel="icon" href={faviconUrl} type={faviconType} transition:persist="head-icon" />
     <link rel="apple-touch-icon" href={faviconUrl} sizes="180x180" transition:persist="head-apple-touch-icon" />
-  </Fragment>
-) : (
-  <Fragment>
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" transition:persist="head-icon" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" transition:persist="head-apple-touch-icon" />
-    <link rel="mask-icon" href="/favicon.svg" color={themeColor} transition:persist="head-mask-icon" />
   </Fragment>
 )}
 <link rel="sitemap" href="/sitemap-index.xml" transition:persist="head-sitemap" />

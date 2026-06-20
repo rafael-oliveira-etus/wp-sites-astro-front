@@ -2,7 +2,6 @@
 import { ClientRouter } from 'astro:transitions';
 import BaseHead from '../components/BaseHead.astro';
 import PageViewTracker from '../components/PageViewTracker.astro';
-import ServiceWorkerRegister from '../components/ServiceWorkerRegister.astro';
 import ConsentBanner from '../components/ConsentBanner.astro';
 import WebVitals from '../components/WebVitals.astro';
 import PixelsLoader from '../components/PixelsLoader.astro';
@@ -50,7 +49,6 @@ const cssVars = [
     <a class="skip-link" href="#main">{display.ui.skipLink}</a>
     <slot />
     <ConsentBanner locale={locale} />
-    <ServiceWorkerRegister />
     {webVitals && <WebVitals />}
     <PixelsLoader locale={locale} vertical={vertical} />
   </body>

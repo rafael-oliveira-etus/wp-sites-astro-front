@@ -50,17 +50,9 @@ const TENANT_LOGO_SVG = (() => {
   }
 })();
 
-// T1.5.B7 — SW VERSION must change every deploy to invalidate stale asset
-// caches. Prefer the CI commit SHA; fall back to build timestamp so local
-// builds also get a fresh ID. Exposed to client code via `import.meta.env`.
-const BUILD_ID =
-  (process.env.GITHUB_SHA && process.env.GITHUB_SHA.slice(0, 12)) ||
-  (process.env.CF_PAGES_COMMIT_SHA && process.env.CF_PAGES_COMMIT_SHA.slice(0, 12)) ||
-  String(Date.now());
-
 export default defineConfig({
   site: siteOrigin(TENANT_OBJ),
-  // SSR enablement: blog routes render per-request; quiz/index/404/sw opt into
+  // SSR enablement: blog routes render per-request; index/404 opt into
   // prerender via `export const prerender = true`.
   output: 'server',
   adapter: cloudflare({ imageService: 'passthrough' }),
@@ -73,7 +65,6 @@ export default defineConfig({
   publicDir: `./tenants/${TENANT_ID}/public`,
   vite: {
     define: {
-      'import.meta.env.PUBLIC_BUILD_ID': JSON.stringify(BUILD_ID),
       'import.meta.env.TENANT_ID': JSON.stringify(TENANT_ID),
       'import.meta.env.TENANT_JSON': JSON.stringify(TENANT_JSON),
       'import.meta.env.TENANT_LOGO_SVG': JSON.stringify(TENANT_LOGO_SVG),
