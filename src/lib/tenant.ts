@@ -1,4 +1,5 @@
 import { type Tenant } from './schemas';
+import { DEFAULT_DISPLAY } from './default-display';
 
 // ── Tenant helpers (node-free, param-based) ─────────────────────────────────────
 // The active tenant is resolved per-request from the Host (see sites.config.ts +
@@ -9,18 +10,17 @@ import { type Tenant } from './schemas';
 export function localeDisplay(tenant: Tenant, locale: string) {
   const display = tenant.display?.[locale];
   if (display) return display;
-  // Locale typos in routing (or stale links) shouldn't 500; the default locale is
-  // always present (Zod-guaranteed at tenant load).
   const fallback = tenant.display?.[tenant.defaultLocale];
-  if (!fallback) {
-    throw new Error(
-      `Tenant "${tenant.id}" missing display config for defaultLocale "${tenant.defaultLocale}".`,
-    );
+  if (fallback) {
+    if (locale !== tenant.defaultLocale) {
+      console.warn(
+        `localeDisplay fallback: tenant=${tenant.id} requested=${locale} → ${tenant.defaultLocale}`,
+      );
+    }
+    return fallback;
   }
-  console.warn(
-    `localeDisplay fallback: tenant=${tenant.id} requested=${locale} → ${tenant.defaultLocale}`,
-  );
-  return fallback;
+  // No per-tenant display at all → shared app default (minimal-bootstrap tenant).
+  return DEFAULT_DISPLAY;
 }
 
 export function primaryDomain(tenant: Tenant): string {
