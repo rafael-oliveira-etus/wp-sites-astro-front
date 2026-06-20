@@ -9,7 +9,6 @@
     "preview": "astro preview",
     "check": "TENANT_ID=${TENANT_ID:-limitemais} astro check",
     "astro": "astro",
-    "optimize-assets": "node scripts/optimize-tenant-assets.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
