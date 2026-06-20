@@ -162,6 +162,22 @@ export async function getMenuLocations(deps: WpDeps): Promise<Record<string, num
 }
 
 /**
+ * WP Reading setting `page_for_posts` — the page id designated as the blog/posts
+ * index (e.g. cardfacil's `/blog`). The front renders the feed at `/`, so this is
+ * used to redirect that page → `/` and drop its menu link. Auth-gated; returns 0
+ * when unset (show_on_front=posts) or unavailable, so callers no-op gracefully.
+ */
+export async function getPostsPageId(deps: WpDeps): Promise<number> {
+  try {
+    const url = buildWpUrl(deps.baseUrl, '/wp/v2/settings', { _fields: 'page_for_posts' });
+    const s = await fetchJson<{ page_for_posts?: number }>(deps, url, { auth: true });
+    return Number(s?.page_for_posts ?? 0) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
  * Nav menu for a theme location as an ordered tree. Resolves the location → menu
  * id → items (`/wp/v2/menu-items`, both auth-gated). Returns [] on any failure
  * (no auth, unknown location) so Header/Footer fall back gracefully.

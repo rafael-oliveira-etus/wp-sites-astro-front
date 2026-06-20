@@ -7,7 +7,7 @@ import { localeDisplay } from '../lib/tenant';
 const TENANT = Astro.locals.tenant;
 import { absoluteUrl, tenantPath } from '../lib/url';
 import { wpDepsFromRuntime, wpAuthEnvKeyFor, waitUntilFrom } from '../lib/wp-runtime';
-import { getPostBySlug, getCategoryBySlug, getPostsPage, getTagBySlug, getAuthorPosts, getPageBySlug } from '../lib/wp';
+import { getPostBySlug, getCategoryBySlug, getPostsPage, getTagBySlug, getAuthorPosts, getPageBySlug, getPostsPageId } from '../lib/wp';
 import { renderWpContent, wpSrcset } from '../lib/wp-html';
 import { wpArticleInput, wpPersonInput } from '../lib/wp-seo';
 import { buildArticleSchema, buildPersonSchema } from '../lib/seo';
@@ -130,6 +130,10 @@ if (segments.length === 2 && segments[0] === 'author') {
       // Standalone WP page (e.g. /termos-de-uso) — linked from menus/footer.
       const page = await getPageBySlug(deps, slug);
       if (!page) return Astro.rewrite('/404');
+      // The WP posts-page (`page_for_posts`, e.g. cardfacil's /blog) is a placeholder
+      // with no body — the feed lives at `/`. Redirect it there instead of rendering blank.
+      const postsPageId = await getPostsPageId(deps);
+      if (postsPageId && page.id === postsPageId) return Astro.redirect('/', 301);
       post = page;
       mode = 'page';
     } else {

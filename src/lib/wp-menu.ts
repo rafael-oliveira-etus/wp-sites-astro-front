@@ -5,7 +5,19 @@ export interface WpMenuItem {
   label: string;
   url: string;
   order: number;
+  /** The WP object this item points at (0 for custom links). Used to drop the
+   *  posts-page ("Blog") link, which is `page_for_posts` — see dropMenuItemsByObjectId. */
+  objectId: number;
   children: WpMenuItem[];
+}
+
+/** Recursively drop menu items pointing at a given WP object id (e.g. the
+ *  posts-page link, since the front renders the feed at `/`). id 0 → no-op. */
+export function dropMenuItemsByObjectId(items: WpMenuItem[], objectId: number): WpMenuItem[] {
+  if (!objectId) return items;
+  return items
+    .filter((i) => i.objectId !== objectId)
+    .map((i) => ({ ...i, children: dropMenuItemsByObjectId(i.children, objectId) }));
 }
 
 function decode(s: string): string {
@@ -48,6 +60,7 @@ export function buildMenuTree(rawItems: unknown, opts: { wpBaseUrl?: string } = 
       label: decode(String(i.title?.rendered ?? i.title ?? '')),
       url: relativize(String(i.url ?? '#'), opts.wpBaseUrl),
       order: Number(i.menu_order ?? 0),
+      objectId: Number(i.object_id ?? 0),
       parent: Number(i.menu_item_parent ?? i.parent ?? 0),
       children: [],
     });

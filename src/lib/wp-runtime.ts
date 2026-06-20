@@ -1,6 +1,6 @@
 import { kvCacheStore, type CacheStore, type KvLike } from './wp-cache';
-import { getMenuTree, getFooterMenus, type WpDeps } from './wp';
-import type { WpMenuItem } from './wp-menu';
+import { getMenuTree, getFooterMenus, getPostsPageId, type WpDeps } from './wp';
+import { dropMenuItemsByObjectId, type WpMenuItem } from './wp-menu';
 import { getBoltConfig } from './wp-config';
 import type { BoltConfig } from './wp-config';
 import { getFooterWidgets, type FooterWidgets } from './wp-footer';
@@ -68,9 +68,11 @@ export async function wpMenu(baseUrl: string, candidates: Array<string | undefin
   const locs = candidates.filter((c): c is string => Boolean(c));
   if (locs.length === 0) return [];
   const deps = await wpDepsFromRuntime(baseUrl, authKey, waitUntil);
+  // The posts-page ("Blog") link is dropped — the front renders the feed at `/`.
+  const postsPageId = await getPostsPageId(deps);
   for (const loc of locs) {
     const tree = await getMenuTree(deps, loc);
-    if (tree.length > 0) return tree;
+    if (tree.length > 0) return dropMenuItemsByObjectId(tree, postsPageId);
   }
   return [];
 }
@@ -84,8 +86,12 @@ export async function boltConfig(baseUrl: string, authKey: string, waitUntil?: (
 
 export async function footerData(baseUrl: string, authKey: string, waitUntil?: (p: Promise<unknown>) => void): Promise<{ widgets: FooterWidgets; first: WpMenuItem[]; second: WpMenuItem[] }> {
   const deps = await wpDepsFromRuntime(baseUrl, authKey, waitUntil);
-  const [widgets, menus] = await Promise.all([getFooterWidgets(deps), getFooterMenus(deps)]);
-  return { widgets, first: menus.first, second: menus.second };
+  const [widgets, menus, postsPageId] = await Promise.all([getFooterWidgets(deps), getFooterMenus(deps), getPostsPageId(deps)]);
+  return {
+    widgets,
+    first: dropMenuItemsByObjectId(menus.first, postsPageId),
+    second: dropMenuItemsByObjectId(menus.second, postsPageId),
+  };
 }
 
 // Best-effort in-memory cache for environments without a KV binding (astro dev,
