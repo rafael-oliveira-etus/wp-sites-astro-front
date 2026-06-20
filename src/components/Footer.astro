@@ -1,6 +1,6 @@
 ---
 import { localeDisplay } from "../lib/tenant";
-import { footerData, boltConfig, wpAuthEnvKeyFor } from "../lib/wp-runtime";
+import { footerData, boltConfig, wpAuthEnvKeyFor, waitUntilFrom } from "../lib/wp-runtime";
 const TENANT = Astro.locals.tenant;
 
 interface Props {
@@ -13,8 +13,9 @@ const year = new Date().getFullYear();
 
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
 const authKey = wpAuthEnvKeyFor(TENANT);
-const fd = wpBaseUrl ? await footerData(wpBaseUrl, authKey) : null;
-const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, authKey) : null;
+const waitUntil = waitUntilFrom(Astro.locals);
+const fd = wpBaseUrl ? await footerData(wpBaseUrl, authKey, waitUntil) : null;
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, authKey, waitUntil) : null;
 const siteName = cfg?.siteName || display.siteName;
 
 const localeLabel = (l: string) => {

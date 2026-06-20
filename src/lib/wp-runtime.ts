@@ -17,12 +17,31 @@ export function wpAuthEnvKeyFor(tenant: { id: string; wpAuthEnv?: string }): str
 }
 
 /**
+ * Extract the Worker `waitUntil` from Astro.locals (the Cloudflare adapter exposes
+ * the execution context as `locals.cfContext`). The WP cache serves stale and
+ * revalidates out of band — but without `waitUntil` that revalidation is a
+ * fire-and-forget promise the runtime cancels once the response is sent, so the
+ * cache never refreshes (serves stale until the 24h hard TTL). Pass this into the
+ * WP fetch helpers so stale entries actually revalidate. Returns it bound to its
+ * ctx (the runtime's waitUntil throws if invoked detached), or undefined when
+ * absent (e.g. `astro dev`'s node server).
+ */
+export function waitUntilFrom(locals: unknown): ((p: Promise<unknown>) => void) | undefined {
+  try {
+    const ctx = (locals as { cfContext?: { waitUntil?: (p: Promise<unknown>) => void } }).cfContext;
+    return ctx?.waitUntil ? ctx.waitUntil.bind(ctx) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
  * Build WpDeps from the Worker runtime. Astro v6 removed `Astro.locals.runtime.env`,
  * so bindings are read via the `cloudflare:workers` module (as middleware does).
  * The import is absent under `astro dev` → falls back to the in-memory store.
  * Auth is per-tenant: pass the resolved env key (from `wpAuthEnvKeyFor`).
  */
-export async function wpDepsFromRuntime(baseUrl: string, authKey: string): Promise<WpDeps> {
+export async function wpDepsFromRuntime(baseUrl: string, authKey: string, waitUntil?: (p: Promise<unknown>) => void): Promise<WpDeps> {
   let kv: KvLike | null = null;
   let secret: string | undefined;
   try {
@@ -37,7 +56,7 @@ export async function wpDepsFromRuntime(baseUrl: string, authKey: string): Promi
   if (!secret && typeof process !== 'undefined') secret = process.env?.[authKey];
   // The secret holds "user:application_password"; encode it as an HTTP Basic header.
   const authHeader = secret ? `Basic ${btoa(secret)}` : undefined;
-  return wpDeps({ baseUrl, kv, authHeader });
+  return wpDeps({ baseUrl, kv, authHeader, waitUntil });
 }
 
 /**
@@ -45,10 +64,10 @@ export async function wpDepsFromRuntime(baseUrl: string, authKey: string): Promi
  * slug until one returns items. Returns [] on any failure (no auth, none match) so
  * the caller falls back to its default navigation. Safe to call from a component.
  */
-export async function wpMenu(baseUrl: string, candidates: Array<string | undefined>, authKey: string): Promise<WpMenuItem[]> {
+export async function wpMenu(baseUrl: string, candidates: Array<string | undefined>, authKey: string, waitUntil?: (p: Promise<unknown>) => void): Promise<WpMenuItem[]> {
   const locs = candidates.filter((c): c is string => Boolean(c));
   if (locs.length === 0) return [];
-  const deps = await wpDepsFromRuntime(baseUrl, authKey);
+  const deps = await wpDepsFromRuntime(baseUrl, authKey, waitUntil);
   for (const loc of locs) {
     const tree = await getMenuTree(deps, loc);
     if (tree.length > 0) return tree;
@@ -58,13 +77,13 @@ export async function wpMenu(baseUrl: string, candidates: Array<string | undefin
 
 /** Fetch the BOLT site config (colors/branding) for a headless tenant. Cached;
  *  null on failure so callers fall back to neutral defaults. */
-export async function boltConfig(baseUrl: string, authKey: string): Promise<BoltConfig | null> {
-  const deps = await wpDepsFromRuntime(baseUrl, authKey);
+export async function boltConfig(baseUrl: string, authKey: string, waitUntil?: (p: Promise<unknown>) => void): Promise<BoltConfig | null> {
+  const deps = await wpDepsFromRuntime(baseUrl, authKey, waitUntil);
   return getBoltConfig(deps);
 }
 
-export async function footerData(baseUrl: string, authKey: string): Promise<{ widgets: FooterWidgets; first: WpMenuItem[]; second: WpMenuItem[] }> {
-  const deps = await wpDepsFromRuntime(baseUrl, authKey);
+export async function footerData(baseUrl: string, authKey: string, waitUntil?: (p: Promise<unknown>) => void): Promise<{ widgets: FooterWidgets; first: WpMenuItem[]; second: WpMenuItem[] }> {
+  const deps = await wpDepsFromRuntime(baseUrl, authKey, waitUntil);
   const [widgets, menus] = await Promise.all([getFooterWidgets(deps), getFooterMenus(deps)]);
   return { widgets, first: menus.first, second: menus.second };
 }

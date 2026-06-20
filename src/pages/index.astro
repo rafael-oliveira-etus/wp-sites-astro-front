@@ -3,7 +3,7 @@
 // permalinks, so `/` is the real homepage). Tenant resolved per-request from Host.
 import { localeDisplay } from '../lib/tenant';
 import { absoluteUrl, localePath } from '../lib/url';
-import { wpDepsFromRuntime, wpAuthEnvKeyFor } from '../lib/wp-runtime';
+import { wpDepsFromRuntime, wpAuthEnvKeyFor, waitUntilFrom } from '../lib/wp-runtime';
 import { getPostsPage } from '../lib/wp';
 import WpListView from '../components/blog/WpListView.astro';
 import type { WpPost } from '../lib/wp-types';
@@ -17,7 +17,7 @@ const redirectCanonical = absoluteUrl(TENANT, target);
 let postsPage = { posts: [] as WpPost[], page: 1, totalPages: 0, total: 0 };
 let display: ReturnType<typeof localeDisplay> | null = null;
 if (wpBaseUrl) {
-  const deps = await wpDepsFromRuntime(wpBaseUrl, wpAuthEnvKeyFor(TENANT));
+  const deps = await wpDepsFromRuntime(wpBaseUrl, wpAuthEnvKeyFor(TENANT), waitUntilFrom(Astro.locals));
   postsPage = await getPostsPage(deps, { page: 1, perPage: 12 });
   display = localeDisplay(TENANT, TENANT.defaultLocale);
 }
