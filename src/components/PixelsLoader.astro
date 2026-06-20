@@ -12,7 +12,7 @@
 // platform's "configure additional pixel" snippet (fbq('init', X); +
 // fbq('track', ..., {}, {eventID: ...})).
 
-import { TENANT } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import { resolveAllPixels, type ResolvedPixels } from '../lib/tracking-resolver';
 import type { Vertical } from '../lib/schemas';
 

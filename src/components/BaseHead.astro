@@ -6,7 +6,8 @@ import {
   buildWebSiteSchema,
   inferImageType,
 } from '../lib/seo';
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import { absoluteUrl, bcp47ToOgLocale } from '../lib/url';
 import AnalyticsBoot from './AnalyticsBoot.astro';
 import { AD_PRECONNECT_ORIGINS } from '@etus/ads';

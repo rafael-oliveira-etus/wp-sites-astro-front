@@ -4,7 +4,8 @@
 // worker, consent, pixels, web-vitals) and NO ClientRouter — headless pages are
 // static HTML, all CSS inline. See docs/superpowers/specs/2026-06-18-lean-headless-blog-frontend-design.md
 import BaseHead from '../components/BaseHead.astro';
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import type { SeoProps } from '../lib/seo';
 import type { Vertical } from '../lib/schemas';
 import { boltConfig } from '../lib/wp-runtime';

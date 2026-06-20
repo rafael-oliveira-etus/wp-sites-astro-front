@@ -2,7 +2,8 @@
 // Root route. Quiz/YAML tenants: prerendered `/` → `/{locale}` redirect.
 // Headless-WordPress tenants: SSR homepage feed of the latest WP posts (flat
 // permalinks, so `/` is the real homepage rather than a locale redirect).
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import { absoluteUrl, localePath } from '../lib/url';
 import { wpDepsFromRuntime } from '../lib/wp-runtime';
 import { getPostsPage } from '../lib/wp';

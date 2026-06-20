@@ -3,9 +3,8 @@
  * decision is unit-testable WITHOUT the Worker runtime (no astro:middleware /
  * cloudflare:workers imports here).
  *
- * Adapted from etus-blog: front-quiz bakes the tenant at build (TENANT_ID /
- * TENANT_JSON via vite.define, one Worker per tenant), so there is NO Host→
- * SiteConfig / SITES-KV resolution here — only the ad-mode decision.
+ * The tenant is resolved per-request from the Host (see sites.config.ts +
+ * middleware.ts); this module owns only the ad-mode decision.
  */
 import type { AdsMode } from '@etus/ads';
 

@@ -1,6 +1,7 @@
 ---
-import { TENANT, localeDisplay } from "../lib/tenant";
+import { localeDisplay } from "../lib/tenant";
 import { footerData } from "../lib/wp-runtime";
+const TENANT = Astro.locals.tenant;
 
 interface Props {
   locale: string;

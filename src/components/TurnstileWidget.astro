@@ -6,7 +6,7 @@
 // We use explicit render (api.js?render=explicit) so we can mount on a target
 // element of our choosing and re-execute on token expiry. Invisible size means
 // no UI unless Cloudflare's heuristics flag the visitor.
-import { TENANT } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 
 const turnstile = TENANT.tracking.turnstile;
 const enabled = Boolean(turnstile?.enabled && turnstile?.siteKey);

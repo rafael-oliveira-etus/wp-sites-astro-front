@@ -19,7 +19,8 @@
 // shim below re-invokes the exported init (window.__etusConsentInit) after each
 // VT nav — preserving the original re-run-on-navigation behavior. The shim is a
 // no-op until the module has assigned the global.
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 
 interface Props {
   locale: string;

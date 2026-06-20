@@ -1,5 +1,5 @@
 ---
-import { TENANT } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import { resolveAllPixels } from '../lib/tracking-resolver';
 import type { Vertical } from '../lib/schemas';
 import { BOOT_STUB } from './analytics-boot.body';

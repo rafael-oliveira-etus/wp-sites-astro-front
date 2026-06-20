@@ -1,5 +1,6 @@
 ---
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import { localePath } from '../lib/url';
 import { wpMenu, boltConfig } from '../lib/wp-runtime';
 

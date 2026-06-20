@@ -5,7 +5,8 @@ import PageViewTracker from '../components/PageViewTracker.astro';
 import ConsentBanner from '../components/ConsentBanner.astro';
 import WebVitals from '../components/WebVitals.astro';
 import PixelsLoader from '../components/PixelsLoader.astro';
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import type { SeoProps } from '../lib/seo';
 import type { Vertical } from '../lib/schemas';
 

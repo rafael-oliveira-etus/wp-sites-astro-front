@@ -3,7 +3,8 @@
 // post, an author archive (/author/<slug>), or a category archive; everything
 // unresolved → styled 404. Lowest route priority — quiz/blog/static routes win
 // first. Only active for tenants with `blog.wpBaseUrl`; YAML tenants → /404.
-import { TENANT, localeDisplay } from '../lib/tenant';
+import { localeDisplay } from '../lib/tenant';
+const TENANT = Astro.locals.tenant;
 import { absoluteUrl, tenantPath } from '../lib/url';
 import { wpDepsFromRuntime } from '../lib/wp-runtime';
 import { getPostBySlug, getCategoryBySlug, getPostsPage, getTagBySlug, getAuthorPosts, getPageBySlug } from '../lib/wp';
