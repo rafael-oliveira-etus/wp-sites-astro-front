@@ -7,11 +7,11 @@ import { type Tenant } from './schemas';
 // No node builtins / no `process` — safe in the workerd render sandbox.
 
 export function localeDisplay(tenant: Tenant, locale: string) {
-  const display = tenant.display[locale];
+  const display = tenant.display?.[locale];
   if (display) return display;
   // Locale typos in routing (or stale links) shouldn't 500; the default locale is
   // always present (Zod-guaranteed at tenant load).
-  const fallback = tenant.display[tenant.defaultLocale];
+  const fallback = tenant.display?.[tenant.defaultLocale];
   if (!fallback) {
     throw new Error(
       `Tenant "${tenant.id}" missing display config for defaultLocale "${tenant.defaultLocale}".`,

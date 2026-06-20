@@ -329,11 +329,27 @@ export const blogConfigSchema = z.object({
 });
 export type BlogConfig = z.infer<typeof blogConfigSchema>;
 
+// Neutral brand palette used when a tenant declares no `brand`. Real colors are
+// overlaid from the BOLT config at runtime on the blog path (BlogLayout); this
+// default only governs non-blog chrome (BaseLayout / themeColor).
+export const DEFAULT_BRAND = {
+  primaryColor: '#1f2937',
+  secondaryColor: '#0f172a',
+  bgColor: '#ffffff',
+  textColor: '#0a0a0a',
+  mutedTextColor: '#555851',
+  logo: { src: 'logo.svg', width: 119, height: 31 },
+} as const;
+
 export const tenantSchema = z.object({
   id: z.string().min(1),
   domains: z.array(z.string()).min(1),
   defaultLocale: localeStringSchema,
   locales: z.array(localeStringSchema).min(1),
+  // Exact env var name holding this tenant's WordPress auth secret
+  // ("user:application_password"). Declared literally so casing can't drift
+  // (see wpAuthEnvKeyFor). When absent, falls back to WP_AUTH_<ID uppercased>.
+  wpAuthEnv: z.string().optional(),
   // Blog theme (Phase D). 'classic' = the original layout (A/B baseline);
   // 'editorial' = the premium reading-lane redesign. One Worker per tenant, so
   // this is constant per site — flip a tenant to compare against a classic one.
@@ -342,52 +358,56 @@ export const tenantSchema = z.object({
   // are named `<prefix>_<device>_<position>` — gat_mob_top, gat_desk_top,
   // gat_tablet_top, gat_mob_content, gat_desk_end, … Defaults to the tenant id.
   adUnitPrefix: z.string().optional(),
-  brand: z.object({
-    primaryColor: z.string(),
-    secondaryColor: z.string(),
-    bgColor: z.string(),
-    textColor: z.string(),
-    mutedTextColor: z.string(),
-    logo: z
-      .object({
-        src: z.string().default('logo.svg'),
-        width: z.number().int().positive().default(119),
-        height: z.number().int().positive().default(31),
-      })
-      .default({ src: 'logo.svg', width: 119, height: 31 }),
-  }),
-  seo: z.object({
-    twitterHandle: z.string(),
-    organization: z.object({
-      name: z.string(),
-      legalName: z.string().optional(),
-      url: z.url(),
-      logo: z.url().optional(),
-      sameAs: z.array(z.url()).default([]),
-      // T1.5.H13 — Schema.org `contactPoint` + `address` populate Google's
-      // Knowledge Panel and reduce trust friction on finance-vertical SERPs.
-      // Both optional; omitted entries are dropped from the emitted JSON-LD.
-      contactPoint: z
+  brand: z
+    .object({
+      primaryColor: z.string(),
+      secondaryColor: z.string(),
+      bgColor: z.string(),
+      textColor: z.string(),
+      mutedTextColor: z.string(),
+      logo: z
         .object({
-          telephone: z.string().optional(),
-          email: z.email().optional(),
-          contactType: z.string().default('customer support'),
-          areaServed: z.union([z.string(), z.array(z.string())]).optional(),
-          availableLanguage: z.union([z.string(), z.array(z.string())]).optional(),
+          src: z.string().default('logo.svg'),
+          width: z.number().int().positive().default(119),
+          height: z.number().int().positive().default(31),
         })
-        .optional(),
-      address: z
-        .object({
-          streetAddress: z.string().optional(),
-          addressLocality: z.string().optional(),
-          addressRegion: z.string().optional(),
-          postalCode: z.string().optional(),
-          addressCountry: z.string(),
-        })
-        .optional(),
-    }),
-  }),
-  display: z.record(localeStringSchema, localeDisplaySchema),
+        .default({ src: 'logo.svg', width: 119, height: 31 }),
+    })
+    .default(DEFAULT_BRAND),
+  seo: z
+    .object({
+      twitterHandle: z.string(),
+      organization: z.object({
+        name: z.string(),
+        legalName: z.string().optional(),
+        url: z.url(),
+        logo: z.url().optional(),
+        sameAs: z.array(z.url()).default([]),
+        // T1.5.H13 — Schema.org `contactPoint` + `address` populate Google's
+        // Knowledge Panel and reduce trust friction on finance-vertical SERPs.
+        // Both optional; omitted entries are dropped from the emitted JSON-LD.
+        contactPoint: z
+          .object({
+            telephone: z.string().optional(),
+            email: z.email().optional(),
+            contactType: z.string().default('customer support'),
+            areaServed: z.union([z.string(), z.array(z.string())]).optional(),
+            availableLanguage: z.union([z.string(), z.array(z.string())]).optional(),
+          })
+          .optional(),
+        address: z
+          .object({
+            streetAddress: z.string().optional(),
+            addressLocality: z.string().optional(),
+            addressRegion: z.string().optional(),
+            postalCode: z.string().optional(),
+            addressCountry: z.string(),
+          })
+          .optional(),
+      }),
+    })
+    .optional(),
+  display: z.record(localeStringSchema, localeDisplaySchema).optional(),
   // Per-tenant editorial identity (byline + future Person JSON-LD / author pages).
   // The content importer sources this instead of a hardcoded per-post WP author.
   editorial: z

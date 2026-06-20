@@ -26,7 +26,8 @@ export interface SeoProps {
 // `sameAs` claim; emit the property only when at least one URL is present.
 // Same conditional logic for legalName / logo / contactPoint / address —
 // omitted fields are dropped instead of stringified as `null`/`undefined`.
-export function buildOrganizationSchema(tenant: Tenant): Record<string, unknown> {
+export function buildOrganizationSchema(tenant: Tenant): Record<string, unknown> | null {
+  if (!tenant.seo) return null;
   const org = tenant.seo.organization;
   const out: Record<string, unknown> = {
     '@context': 'https://schema.org',
@@ -57,18 +58,21 @@ export function buildWebSiteSchema(
   locale: string,
 ): Record<string, unknown> {
   const display = localeDisplay(tenant, locale);
-  return {
+  const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
     name: display.siteName,
     url: absoluteUrl(tenant, `/${locale}`),
     inLanguage: locale,
-    publisher: {
+  };
+  if (tenant.seo) {
+    schema.publisher = {
       '@type': 'Organization',
       name: tenant.seo.organization.name,
       url: tenant.seo.organization.url,
-    },
-  };
+    };
+  }
+  return schema;
 }
 
 export function buildWebPageSchema(
@@ -151,11 +155,13 @@ export function buildArticleSchema(
       name: input.author.name,
       url: input.author.url,
     },
-    publisher: {
-      '@type': 'Organization',
-      name: tenant.seo.organization.name,
-      url: tenant.seo.organization.url,
-    },
+    ...(tenant.seo ? {
+      publisher: {
+        '@type': 'Organization',
+        name: tenant.seo.organization.name,
+        url: tenant.seo.organization.url,
+      },
+    } : {}),
   };
 }
 
@@ -196,11 +202,13 @@ export function buildQuizSchema(
     url: input.url,
     inLanguage: locale,
     numberOfQuestions: input.numberOfQuestions,
-    provider: {
-      '@type': 'Organization',
-      name: tenant.seo.organization.name,
-      url: tenant.seo.organization.url,
-    },
+    ...(tenant.seo ? {
+      provider: {
+        '@type': 'Organization',
+        name: tenant.seo.organization.name,
+        url: tenant.seo.organization.url,
+      },
+    } : {}),
   };
 }
 

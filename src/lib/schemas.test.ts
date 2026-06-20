@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { tenantSchema } from './schemas';
+import { tenantSchema, DEFAULT_BRAND } from './schemas';
 
 const baseTenant = {
   id: 'examplecards',
@@ -83,6 +83,37 @@ const baseTenant = {
     microsoftUet: { tags: [] },
   },
 };
+
+describe('tenantSchema minimal bootstrap', () => {
+  const minimal = {
+    id: 'cardfacil',
+    domains: ['cardfacil.com'],
+    defaultLocale: 'pt-br',
+    locales: ['pt-br'],
+    wpAuthEnv: 'WP_AUTH_CARDFACIL',
+    blog: { wpBaseUrl: 'https://cardfacil.com' },
+  };
+
+  it('parses a minimal tenant with no display/seo/legal', () => {
+    const t = tenantSchema.parse(minimal);
+    expect(t.id).toBe('cardfacil');
+    expect(t.display).toBeUndefined();
+    expect(t.seo).toBeUndefined();
+    expect(t.legal).toBeUndefined();
+    expect(t.wpAuthEnv).toBe('WP_AUTH_CARDFACIL');
+  });
+
+  it('defaults brand to DEFAULT_BRAND when omitted', () => {
+    const t = tenantSchema.parse(minimal);
+    expect(t.brand).toEqual(DEFAULT_BRAND);
+  });
+
+  it('keeps wpAuthEnv optional', () => {
+    const { wpAuthEnv, ...noAuth } = minimal;
+    const t = tenantSchema.parse(noAuth);
+    expect(t.wpAuthEnv).toBeUndefined();
+  });
+});
 
 describe('tenantSchema.blog', () => {
   it('accepts a tenant with blog.wpBaseUrl', () => {
