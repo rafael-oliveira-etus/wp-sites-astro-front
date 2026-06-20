@@ -1,9 +1,15 @@
-import { type Tenant } from './schemas';
+import { z } from 'zod';
+import { type Tenant, tenantSchema } from './schemas';
+
+// Parse a raw (partial) tenant config through tenantSchema so that fields with
+// `.default()` — theme, brand, tracking, crm, webpush, authors, authorByVertical
+// — are filled in at module load. Consumers still receive a fully-typed Tenant.
+const parseTenant = (raw: z.input<typeof tenantSchema>): Tenant => tenantSchema.parse(raw);
 
 // Single source of truth for every deployed site. Add a site = add an entry.
 // Keyed by tenant id. Resolved at request time by middleware via the Host header.
 export const SITES: Record<string, Tenant> = {
-  "limitemais": {
+  "limitemais": parseTenant({
     "id": "limitemais",
     "domains": [
       "limitemais.com",
@@ -172,15 +178,23 @@ export const SITES: Record<string, Tenant> = {
         "footer": "footer-first-menu"
       }
     }
-  }
+  }),
+  "cardfacil": parseTenant({
+    "id": "cardfacil",
+    "domains": ["cardfacil.com"],
+    "defaultLocale": "pt-br",
+    "locales": ["pt-br"],
+    "wpAuthEnv": "WP_AUTH_CARDFACIL",
+    "blog": { "wpBaseUrl": "https://cardfacil.com" },
+  }),
 };
 
 // SITES is a module singleton shared across requests in a reused isolate. Deep-freeze
 // it so a stray mutation throws at the offending call site instead of silently
 // corrupting every tenant (the classic multi-tenant shared-state footgun).
-for (const site of Object.values(SITES)) {
-  Object.freeze(site.domains);
-  Object.freeze(site);
+for (const tenant of Object.values(SITES)) {
+  Object.freeze(tenant.domains);
+  Object.freeze(tenant);
 }
 Object.freeze(SITES);
 
