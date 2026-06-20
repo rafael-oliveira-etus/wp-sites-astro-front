@@ -13,9 +13,20 @@
   // namespaces); replace with real ids before `wrangler deploy`.
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "frontend",
+  // Disable the *.workers.dev subdomain: the worker is only meant to serve the
+  // real per-tenant domains (see `routes`). Without this it would also answer on
+  // frontend.<account>.workers.dev — now indexable (no noindex header), creating
+  // duplicate-content copies of every page. Keep it off; serve canonical hosts only.
+  "workers_dev": false,
   "main": "@astrojs/cloudflare/entrypoints/server",
   "compatibility_date": "2026-06-01",
   "compatibility_flags": ["nodejs_compat"],
+  // Production marker (ENVIRONMENT). Drives ad mode (prod→live ads, non-prod→test,
+  // no billing) and the device-keyed edge cache (only runs in production). Does NOT
+  // affect SEO — the X-Robots-Tag noindex header was removed from middleware.ts, so
+  // every environment is indexable. `wrangler deploy` reads this; local `wrangler
+  // dev` overrides it back to non-prod via .dev.vars (ENVIRONMENT=development).
+  "vars": { "ENVIRONMENT": "production" },
   "assets": { "binding": "ASSETS", "directory": "./dist", "not_found_handling": "404-page", "html_handling": "drop-trailing-slash" },
   "kv_namespaces": [
     { "binding": "SESSION", "id": "0000000000000000000000000000spike" },

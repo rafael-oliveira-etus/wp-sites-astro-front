@@ -57,9 +57,9 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   const env = await getRuntimeEnv();
 
-  // Environment + ad mode — safe-by-default: noindex unless 'production'; ad mode
-  // defaults prod→live, non-prod→'test' (sample network, no billing), forceable to
-  // 'off' via ADS_MODE. Tenant identity is resolved above from the request Host.
+  // Environment + ad mode. ad mode defaults prod→live, non-prod→'test' (sample
+  // network, no billing), forceable to 'off' via ADS_MODE. Tenant identity is
+  // resolved above from the request Host.
   const environment = (env?.ENVIRONMENT as string | undefined) ?? 'development';
   const isProduction = environment === 'production';
   const adsMode = resolveAdsMode(env?.ADS_MODE as string | undefined, isProduction);
@@ -89,7 +89,6 @@ export const onRequest = defineMiddleware(async (context, next) => {
   // ships Report-Only first (see lib/security): it observes, never blocks.
   const applySecurity = (r: Response): Response => {
     r.headers.set(CSP_HEADER, cspForNonce(nonce));
-    if (!isProduction) r.headers.set('X-Robots-Tag', 'noindex, nofollow');
     return r;
   };
 
