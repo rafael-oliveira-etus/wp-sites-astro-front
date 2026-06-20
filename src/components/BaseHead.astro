@@ -202,7 +202,9 @@ const turnstileEnabled =
     <link rel="apple-touch-icon" href={faviconUrl} sizes="180x180" transition:persist="head-apple-touch-icon" />
   </Fragment>
 )}
-<link rel="sitemap" href="/sitemap-index.xml" transition:persist="head-sitemap" />
+{TENANT.blog?.wpBaseUrl && (
+  <link rel="sitemap" href={`${TENANT.blog.wpBaseUrl}/sitemap_index.xml`} transition:persist="head-sitemap" />
+)}
 
 {/* Structured data (JSON-LD) temporarily DISABLED for headless-WP tenants —
     those pages have no SEO focus yet (user request 2026-06-17). Quiz/SSG
