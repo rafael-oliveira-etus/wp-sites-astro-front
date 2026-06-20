@@ -5,25 +5,32 @@ import { getBoltConfig } from './wp-config';
 import type { BoltConfig } from './wp-config';
 import { getFooterWidgets, type FooterWidgets } from './wp-footer';
 
+/** Per-tenant WP auth secret name: `WP_AUTH_<ID>` (id uppercased, non-alnum→`_`). */
+export function wpAuthEnvKey(tenantId: string): string {
+  return 'WP_AUTH_' + tenantId.toUpperCase().replace(/[^A-Z0-9]/g, '_');
+}
+
 /**
  * Build WpDeps from the Worker runtime. Astro v6 removed `Astro.locals.runtime.env`,
  * so bindings are read via the `cloudflare:workers` module (as middleware does).
  * The import is absent under `astro dev` → falls back to the in-memory store.
+ * Auth is per-tenant: the secret `WP_AUTH_<ID>` is selected from the active tenant.
  */
-export async function wpDepsFromRuntime(baseUrl: string): Promise<WpDeps> {
+export async function wpDepsFromRuntime(baseUrl: string, tenantId: string): Promise<WpDeps> {
+  const key = wpAuthEnvKey(tenantId);
   let kv: KvLike | null = null;
   let secret: string | undefined;
   try {
     const mod = await import('cloudflare:workers');
     const env = (mod as unknown as { env?: Record<string, unknown> }).env ?? {};
     kv = (env.WP_CACHE as KvLike | undefined) ?? null;
-    secret = env.WP_AUTH as string | undefined;
+    secret = env[key] as string | undefined;
   } catch {
     kv = null;
   }
-  // Dev/build fallback (no cloudflare:workers): allow WP_AUTH via process.env.
-  if (!secret && typeof process !== 'undefined') secret = process.env?.WP_AUTH;
-  // WP_AUTH holds "user:application_password"; encode it as an HTTP Basic header.
+  // Dev/build fallback (no cloudflare:workers): allow the secret via process.env.
+  if (!secret && typeof process !== 'undefined') secret = process.env?.[key];
+  // The secret holds "user:application_password"; encode it as an HTTP Basic header.
   const authHeader = secret ? `Basic ${btoa(secret)}` : undefined;
   return wpDeps({ baseUrl, kv, authHeader });
 }
@@ -33,10 +40,10 @@ export async function wpDepsFromRuntime(baseUrl: string): Promise<WpDeps> {
  * slug until one returns items. Returns [] on any failure (no auth, none match) so
  * the caller falls back to its default navigation. Safe to call from a component.
  */
-export async function wpMenu(baseUrl: string, candidates: Array<string | undefined>): Promise<WpMenuItem[]> {
+export async function wpMenu(baseUrl: string, candidates: Array<string | undefined>, tenantId: string): Promise<WpMenuItem[]> {
   const locs = candidates.filter((c): c is string => Boolean(c));
   if (locs.length === 0) return [];
-  const deps = await wpDepsFromRuntime(baseUrl);
+  const deps = await wpDepsFromRuntime(baseUrl, tenantId);
   for (const loc of locs) {
     const tree = await getMenuTree(deps, loc);
     if (tree.length > 0) return tree;
@@ -46,13 +53,13 @@ export async function wpMenu(baseUrl: string, candidates: Array<string | undefin
 
 /** Fetch the BOLT site config (colors/branding) for a headless tenant. Cached;
  *  null on failure so callers fall back to neutral defaults. */
-export async function boltConfig(baseUrl: string): Promise<BoltConfig | null> {
-  const deps = await wpDepsFromRuntime(baseUrl);
+export async function boltConfig(baseUrl: string, tenantId: string): Promise<BoltConfig | null> {
+  const deps = await wpDepsFromRuntime(baseUrl, tenantId);
   return getBoltConfig(deps);
 }
 
-export async function footerData(baseUrl: string): Promise<{ widgets: FooterWidgets; first: WpMenuItem[]; second: WpMenuItem[] }> {
-  const deps = await wpDepsFromRuntime(baseUrl);
+export async function footerData(baseUrl: string, tenantId: string): Promise<{ widgets: FooterWidgets; first: WpMenuItem[]; second: WpMenuItem[] }> {
+  const deps = await wpDepsFromRuntime(baseUrl, tenantId);
   const [widgets, menus] = await Promise.all([getFooterWidgets(deps), getFooterMenus(deps)]);
   return { widgets, first: menus.first, second: menus.second };
 }

@@ -12,7 +12,7 @@ const display = localeDisplay(TENANT, locale);
 const year = new Date().getFullYear();
 
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
-const fd = wpBaseUrl ? await footerData(wpBaseUrl) : null;
+const fd = wpBaseUrl ? await footerData(wpBaseUrl, TENANT.id) : null;
 
 const localeLabel = (l: string) => {
   const [lang, region] = l.split("-");

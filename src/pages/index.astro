@@ -23,7 +23,7 @@ const redirectCanonical = absoluteUrl(TENANT, target);
 let postsPage = { posts: [] as WpPost[], page: 1, totalPages: 0, total: 0 };
 let display: ReturnType<typeof localeDisplay> | null = null;
 if (wpBaseUrl) {
-  const deps = await wpDepsFromRuntime(wpBaseUrl);
+  const deps = await wpDepsFromRuntime(wpBaseUrl, TENANT.id);
   postsPage = await getPostsPage(deps, { page: 1, perPage: 12 });
   display = localeDisplay(TENANT, TENANT.defaultLocale);
 }

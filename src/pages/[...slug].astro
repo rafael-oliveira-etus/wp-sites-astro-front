@@ -22,7 +22,7 @@ if (!wpBaseUrl) return Astro.rewrite('/404');
 const raw = (Astro.params.slug ?? '').replace(/^\/+|\/+$/g, '');
 let segments = raw.split('/').filter(Boolean);
 
-const deps = await wpDepsFromRuntime(wpBaseUrl);
+const deps = await wpDepsFromRuntime(wpBaseUrl, TENANT.id);
 const locale = TENANT.defaultLocale;
 const display = localeDisplay(TENANT, locale);
 

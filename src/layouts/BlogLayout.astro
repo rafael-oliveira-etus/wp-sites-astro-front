@@ -24,7 +24,7 @@ const { locale, vertical = null, ...seoProps } = Astro.props;
 const display = localeDisplay(TENANT, locale);
 
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
-const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl) : null;
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, TENANT.id) : null;
 const c = cfg?.colors ?? {};
 const cv = (key: keyof typeof c, fallback: string) => c[key] || fallback;
 const cssVars = [

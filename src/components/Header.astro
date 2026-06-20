@@ -16,9 +16,9 @@ const display = localeDisplay(TENANT, locale);
 // link if there is no auth / no matching menu location).
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
 const headerMenu = wpBaseUrl
-  ? await wpMenu(wpBaseUrl, [TENANT.blog?.menus?.header, 'header-menu', 'primary', 'main', 'header', 'menu-1', 'top'])
+  ? await wpMenu(wpBaseUrl, [TENANT.blog?.menus?.header, 'header-menu', 'primary', 'main', 'header', 'menu-1', 'top'], TENANT.id)
   : [];
-const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl) : null;
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, TENANT.id) : null;
 const apiLogo = cfg?.branding.logoUrl || '';
 const homeHref = wpBaseUrl ? '/' : localePath(locale);
 const blogHref = wpBaseUrl ? '/' : `${localePath(locale)}/blog`;
