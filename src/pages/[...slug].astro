@@ -6,7 +6,7 @@
 import { localeDisplay } from '../lib/tenant';
 const TENANT = Astro.locals.tenant;
 import { absoluteUrl, tenantPath } from '../lib/url';
-import { wpDepsFromRuntime } from '../lib/wp-runtime';
+import { wpDepsFromRuntime, wpAuthEnvKeyFor } from '../lib/wp-runtime';
 import { getPostBySlug, getCategoryBySlug, getPostsPage, getTagBySlug, getAuthorPosts, getPageBySlug } from '../lib/wp';
 import { renderWpContent, wpSrcset } from '../lib/wp-html';
 import { wpArticleInput, wpPersonInput } from '../lib/wp-seo';
@@ -22,7 +22,7 @@ if (!wpBaseUrl) return Astro.rewrite('/404');
 const raw = (Astro.params.slug ?? '').replace(/^\/+|\/+$/g, '');
 let segments = raw.split('/').filter(Boolean);
 
-const deps = await wpDepsFromRuntime(wpBaseUrl, TENANT.id);
+const deps = await wpDepsFromRuntime(wpBaseUrl, wpAuthEnvKeyFor(TENANT));
 const locale = TENANT.defaultLocale;
 const display = localeDisplay(TENANT, locale);
 

@@ -1,6 +1,6 @@
 ---
 import { localeDisplay } from "../lib/tenant";
-import { footerData } from "../lib/wp-runtime";
+import { footerData, wpAuthEnvKeyFor } from "../lib/wp-runtime";
 const TENANT = Astro.locals.tenant;
 
 interface Props {
@@ -12,7 +12,8 @@ const display = localeDisplay(TENANT, locale);
 const year = new Date().getFullYear();
 
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
-const fd = wpBaseUrl ? await footerData(wpBaseUrl, TENANT.id) : null;
+const authKey = wpAuthEnvKeyFor(TENANT);
+const fd = wpBaseUrl ? await footerData(wpBaseUrl, authKey) : null;
 
 const localeLabel = (l: string) => {
   const [lang, region] = l.split("-");

@@ -2,7 +2,7 @@
 import { localeDisplay } from '../lib/tenant';
 const TENANT = Astro.locals.tenant;
 import { localePath } from '../lib/url';
-import { wpMenu, boltConfig } from '../lib/wp-runtime';
+import { wpMenu, boltConfig, wpAuthEnvKeyFor } from '../lib/wp-runtime';
 
 interface Props {
   locale: string;
@@ -15,10 +15,11 @@ const display = localeDisplay(TENANT, locale);
 // Headless tenants: render the WordPress header nav menu (falls back to the Blog
 // link if there is no auth / no matching menu location).
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
+const authKey = wpAuthEnvKeyFor(TENANT);
 const headerMenu = wpBaseUrl
-  ? await wpMenu(wpBaseUrl, [TENANT.blog?.menus?.header, 'header-menu', 'primary', 'main', 'header', 'menu-1', 'top'], TENANT.id)
+  ? await wpMenu(wpBaseUrl, [TENANT.blog?.menus?.header, 'header-menu', 'primary', 'main', 'header', 'menu-1', 'top'], authKey)
   : [];
-const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, TENANT.id) : null;
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, authKey) : null;
 const apiLogo = cfg?.branding.logoUrl || '';
 const homeHref = wpBaseUrl ? '/' : localePath(locale);
 const blogHref = wpBaseUrl ? '/' : `${localePath(locale)}/blog`;
