@@ -1,6 +1,6 @@
 ---
 import { localeDisplay } from "../lib/tenant";
-import { footerData, wpAuthEnvKeyFor } from "../lib/wp-runtime";
+import { footerData, boltConfig, wpAuthEnvKeyFor } from "../lib/wp-runtime";
 const TENANT = Astro.locals.tenant;
 
 interface Props {
@@ -14,6 +14,8 @@ const year = new Date().getFullYear();
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
 const authKey = wpAuthEnvKeyFor(TENANT);
 const fd = wpBaseUrl ? await footerData(wpBaseUrl, authKey) : null;
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, authKey) : null;
+const siteName = cfg?.siteName || display.siteName;
 
 const localeLabel = (l: string) => {
   const [lang, region] = l.split("-");
@@ -58,7 +60,7 @@ const BOLT_FOOTER_CSS = `.bolt-footer{background:var(--footer-bg,#0a0a0a);color:
             {fd.second.map((i) => <a href={i.url}>{i.label}</a>)}
           </nav>
         )}
-        <p class="bf-copyright">{`© ${year} ${display.siteName} - Todos os direitos reservados`}</p>
+        <p class="bf-copyright">{`© ${year} ${siteName} - Todos os direitos reservados`}</p>
       </div>
     </div>
     {fd.widgets.disclaimer && <div class="bf-disclaimer" set:html={fd.widgets.disclaimer} />}
@@ -111,7 +113,7 @@ const BOLT_FOOTER_CSS = `.bolt-footer{background:var(--footer-bg,#0a0a0a);color:
     {hasDisclosure && <p class="footer-disclosure">{footer!.disclosure}</p>}
 
     <div class="footer-inner">
-      <p class="copyright">© {year} {display.siteName}.</p>
+      <p class="copyright">© {year} {siteName}.</p>
       {
         TENANT.locales.length > 1 && (
           <nav class="locales" aria-label={display.ui.languageNavAria}>

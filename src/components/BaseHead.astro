@@ -21,6 +21,9 @@ type Props = SeoProps & {
   /** Absolute favicon URL from the headless CMS (BOLT branding). The only favicon
    *  source — no local fallback. When absent, no icon link is emitted. */
   faviconUrl?: string;
+  /** Real site name from the BOLT config. Overrides display.siteName when set,
+   *  so a display-less tenant shows its actual WordPress name in title/og/header. */
+  siteName?: string;
 };
 
 const {
@@ -29,6 +32,7 @@ const {
   analytics = true,
   themeColor = TENANT.brand.primaryColor,
   faviconUrl,
+  siteName,
   title,
   description,
   image,
@@ -51,9 +55,13 @@ const display = localeDisplay(TENANT, locale);
 // open an unused connection on ad-free tenants.
 const adsEnabled = !!TENANT.ads;
 
-const fullTitle = !title || title === display.siteName
-  ? display.siteName
-  : `${title} | ${display.siteName}`;
+// Overlay: BOLT config siteName takes precedence over the display fallback so that
+// a display-less (bootstrap) tenant still shows its real WordPress name everywhere.
+const effectiveSiteName = siteName || display.siteName;
+
+const fullTitle = !title || title === effectiveSiteName
+  ? effectiveSiteName
+  : `${title} | ${effectiveSiteName}`;
 
 const finalDescription = description ?? display.description;
 const canonicalUrl = canonical ?? absoluteUrl(TENANT, Astro.url.pathname);
@@ -63,7 +71,7 @@ const imageUrl = image
   ? (/^https?:\/\//.test(image) ? image : absoluteUrl(TENANT, image))
   : undefined;
 const resolvedImageType = image ? (imageType ?? inferImageType(image)) : undefined;
-const finalImageAlt = imageAlt ?? display.siteName;
+const finalImageAlt = imageAlt ?? effectiveSiteName;
 
 // Headless tenants get their favicon from the CMS (BOLT branding). Strip any
 // query string (WP appends ?w=… to media URLs) before inferring the MIME type.
@@ -165,7 +173,7 @@ const turnstileEnabled =
 <meta property="og:title" content={fullTitle} />
 <meta property="og:description" content={finalDescription} />
 <meta property="og:url" content={canonicalUrl} />
-<meta property="og:site_name" content={display.siteName} />
+<meta property="og:site_name" content={effectiveSiteName} />
 <meta property="og:locale" content={bcp47ToOgLocale(locale)} />
 {ogAlternateLocales.map((og) => (
   <meta property="og:locale:alternate" content={og} />

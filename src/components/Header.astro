@@ -20,6 +20,7 @@ const headerMenu = wpBaseUrl
   ? await wpMenu(wpBaseUrl, [TENANT.blog?.menus?.header, 'header-menu', 'primary', 'main', 'header', 'menu-1', 'top'], authKey)
   : [];
 const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl, authKey) : null;
+const siteName = cfg?.siteName || display.siteName;
 const apiLogo = cfg?.branding.logoUrl || '';
 const homeHref = wpBaseUrl ? '/' : localePath(locale);
 const blogHref = wpBaseUrl ? '/' : `${localePath(locale)}/blog`;
@@ -40,7 +41,7 @@ if (isVector) {
   inlineSvg = baked
     ? baked.replace(
         /<svg([^>]*)>/i,
-        (_m, attrs) => `<svg${attrs} role="img" aria-label="${display.siteName}">`,
+        (_m, attrs) => `<svg${attrs} role="img" aria-label="${siteName}">`,
       )
     : null;
 }
@@ -51,14 +52,14 @@ if (isVector) {
   transition:persist="site-header"
 >
   <div class="header-inner">
-  <a class="brand" href={homeHref} aria-label={display.siteName}>
+  <a class="brand" href={homeHref} aria-label={siteName}>
     {inlineSvg ? (
       <Fragment set:html={inlineSvg} />
     ) : isAbsolute ? (
       <img
         class="brand-logo"
         src={logoSrc}
-        alt={display.siteName}
+        alt={siteName}
         width={logo.width}
         height={logo.height}
         decoding="async"
@@ -68,7 +69,7 @@ if (isVector) {
       <img
         class="brand-logo"
         src={logoSrc}
-        alt={display.siteName}
+        alt={siteName}
         width={logo.width}
         height={logo.height}
         decoding="async"
@@ -81,7 +82,7 @@ if (isVector) {
         <img
           class="brand-logo"
           src={logoSrc}
-          alt={display.siteName}
+          alt={siteName}
           width={logo.width}
           height={logo.height}
           decoding="async"
