@@ -26,7 +26,6 @@
     { "pattern": "limitemais.com/*", "zone_name": "limitemais.com" },
     { "pattern": "www.limitemais.com/*", "zone_name": "limitemais.com" },
     { "pattern": "astro-dev.cardfacil.com/*", "zone_name": "cardfacil.com" }
-
   ],
   "observability": { "enabled": true }
 }
