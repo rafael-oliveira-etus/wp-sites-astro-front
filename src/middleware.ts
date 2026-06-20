@@ -34,12 +34,18 @@ export const onRequest = defineMiddleware(async (context, next) => {
   const req = context.request;
 
   // Tenant identity is resolved per-request from the Host (generic multi-tenant
-  // worker — one build serves every site). Unknown host → 404. In dev the Host is
-  // `localhost` (no match), so fall back to TENANT_ID or the first site to keep
-  // `astro dev` working; preview/prod must send a real Host.
-  let tenant = resolveTenantByHost(req.headers.get('host'));
-  if (!tenant && import.meta.env.DEV) {
-    tenant = fallbackTenant(process.env.TENANT_ID);
+  // worker — one build serves every site). Unknown host → 404.
+  const hostHeader = req.headers.get('host');
+  let tenant = resolveTenantByHost(hostHeader);
+  if (!tenant) {
+    // Local dev/preview is served over `localhost` (matches no site): fall back to
+    // TENANT_ID (if set) or the first site so `astro dev` + `wrangler dev` work.
+    // A real, unconfigured host is NOT localhost → it correctly 404s.
+    const bareHost = (hostHeader ?? '').toLowerCase().split(':')[0];
+    if (bareHost === 'localhost' || bareHost === '127.0.0.1' || bareHost === '[::1]') {
+      const devId = typeof process !== 'undefined' ? process.env?.TENANT_ID : undefined;
+      tenant = fallbackTenant(devId);
+    }
   }
   if (!tenant) {
     return new Response('Not Found', {

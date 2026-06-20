@@ -1,19 +1,13 @@
 ---
-// Root route. Quiz/YAML tenants: prerendered `/` → `/{locale}` redirect.
-// Headless-WordPress tenants: SSR homepage feed of the latest WP posts (flat
-// permalinks, so `/` is the real homepage rather than a locale redirect).
+// Root route — SSR homepage feed of the latest WP posts (headless tenants use flat
+// permalinks, so `/` is the real homepage). Tenant resolved per-request from Host.
 import { localeDisplay } from '../lib/tenant';
-const TENANT = Astro.locals.tenant;
 import { absoluteUrl, localePath } from '../lib/url';
 import { wpDepsFromRuntime } from '../lib/wp-runtime';
 import { getPostsPage } from '../lib/wp';
 import WpListView from '../components/blog/WpListView.astro';
 import type { WpPost } from '../lib/wp-types';
-
-// Per-build constant (one tenant per build): headless tenants render SSR, others
-// stay a prerendered redirect. Must reference the hoisted TENANT import directly —
-// `export const prerender` is hoisted above frontmatter consts (TDZ otherwise).
-export const prerender = !TENANT.blog?.wpBaseUrl;
+const TENANT = Astro.locals.tenant;
 
 const wpBaseUrl = TENANT.blog?.wpBaseUrl;
 

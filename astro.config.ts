@@ -1,5 +1,14 @@
 import { defineConfig } from 'astro/config';
 import cloudflare from '@astrojs/cloudflare';
+import { SITES } from './src/lib/sites.config';
+
+// Dev-only: let the Vite dev server accept requests for the configured site
+// domains + their subdomains (e.g. astro-dev.limitemais.com → localhost) so the
+// real Host-based tenant resolution can be exercised locally. A leading-dot entry
+// allows the domain and all its subdomains.
+const allowedHosts = [
+  ...new Set(Object.values(SITES).flatMap((s) => s.domains.flatMap((d) => [d, `.${d}`]))),
+];
 
 // Generic multi-tenant build: NO tenant is baked here. The active tenant is
 // resolved per-request from the Host (src/lib/sites.config.ts + middleware.ts)
@@ -21,6 +30,7 @@ export default defineConfig({
   trailingSlash: 'ignore',
   publicDir: './public',
   vite: {
+    server: { allowedHosts },
     ssr: {
       // Workspace packages ship raw .astro/.ts source — Astro must bundle them
       // for SSR rather than treat them as external node modules.

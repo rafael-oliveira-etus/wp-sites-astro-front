@@ -175,6 +175,15 @@ export const SITES: Record<string, Tenant> = {
   }
 };
 
+// SITES is a module singleton shared across requests in a reused isolate. Deep-freeze
+// it so a stray mutation throws at the offending call site instead of silently
+// corrupting every tenant (the classic multi-tenant shared-state footgun).
+for (const site of Object.values(SITES)) {
+  Object.freeze(site.domains);
+  Object.freeze(site);
+}
+Object.freeze(SITES);
+
 // host (lowercased, port + trailing dot stripped) -> tenant, by suffix match.
 // 'host === domain' or 'host endsWith .domain' (covers www + subdomains; never
 // a substring 'contains', which would let look-alike domains spoof a tenant).
