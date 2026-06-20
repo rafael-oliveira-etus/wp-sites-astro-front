@@ -1,0 +1,26 @@
+---
+/**
+ * <AdInterstitial/> — GPT web interstitial. Inline OOP define + triggers.
+ * Defaults SEO-safe (unhideWindow + endOfArticle). Set the frequency cap in GAM
+ * (default 1/10min). Requires local storage + TCF Purpose 1 + a clear exit.
+ */
+import { bootInterstitialScript, effectiveNetworkCode, slotAllowed } from '../index.ts'
+import type { InterstitialProps } from '../types.ts'
+
+interface Props extends InterstitialProps {
+  config: { networkCode: string; testNetworkCode?: string }
+}
+const { config, triggers, adUnit, devices } = Astro.props
+const adsMode = Astro.locals.adsMode ?? 'test'
+const allowed = adsMode !== 'off' && slotAllowed(devices, Astro.locals.deviceClass ?? 'desktop')
+const resolved = {
+  unhideWindow: triggers?.unhideWindow ?? true,
+  navBar: triggers?.navBar ?? false,
+  inactivity: triggers?.inactivity ?? false,
+  backward: triggers?.backward ?? false,
+  endOfArticle: triggers?.endOfArticle ?? true,
+}
+const script = allowed ? bootInterstitialScript(effectiveNetworkCode(config, adsMode), adUnit, resolved) : ''
+const nonce = Astro.locals.nonce // strict-CSP nonce
+---
+{allowed && <script is:inline nonce={nonce} set:html={script}></script>}

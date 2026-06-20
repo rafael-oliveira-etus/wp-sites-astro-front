@@ -1,0 +1,27 @@
+{
+  "name": "@etus/ads",
+  "version": "0.2.0",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./components/*": "./src/components/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "bowser": "^2.11.0"
+  },
+  "peerDependencies": {
+    "astro": "catalog:"
+  },
+  "devDependencies": {
+    "@types/google-publisher-tag": "1.20260525.0",
+    "@types/node": "catalog:",
+    "astro": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

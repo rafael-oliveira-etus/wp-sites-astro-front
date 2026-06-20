@@ -20,3 +20,9 @@ pnpm-debug.log*
 
 # downloaded/optimized blog images (never committed; images are served from source)
 tenants/*/assets/blog-images/
+
+# screenshots (visual validation artifacts)
+screenshots/
+
+# wrangler local state
+.wrangler/

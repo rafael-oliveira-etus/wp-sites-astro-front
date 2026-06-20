@@ -1,0 +1,15 @@
+{
+  "name": "@etus/seo",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": { "types": "./src/index.ts", "default": "./src/index.ts" },
+    "./components/*": "./src/components/*"
+  },
+  "scripts": { "typecheck": "tsc --noEmit" },
+  "peerDependencies": { "astro": "catalog:" },
+  "devDependencies": {
+    "astro": "catalog:",
+    "typescript": "catalog:"
+  }
+}

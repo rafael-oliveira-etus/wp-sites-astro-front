@@ -14,10 +14,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@etus/ads": "workspace:*",
-    "@etus/seo": "workspace:*",
     "@astrojs/cloudflare": "catalog:",
     "@astrojs/sitemap": "catalog:",
+    "@etus/ads": "workspace:*",
+    "@etus/seo": "workspace:*",
     "astro": "catalog:",
     "marked": "catalog:",
     "web-vitals": "catalog:",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@astrojs/check": "catalog:",
     "esbuild": "catalog:",
+    "playwright": "^1.61.0",
     "sharp": "catalog:",
     "svgo": "catalog:",
     "typescript": "catalog:",

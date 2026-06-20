@@ -1,0 +1,41 @@
+---
+/**
+ * <AdScripts/> — emit once in <head>. INLINE bootstrap (Phase 3 centerpiece):
+ *   1. <link rel="preconnect"> to ad origins.
+ *   2. inline PPID mint (no PII).
+ *   3. inline page-level GPT config (cmd.push setConfig + privacy + ppid +
+ *      secure signals + enableServices) — runs during HTML parse so the cmd
+ *      queue is READY before gpt.js lands.
+ *   4. <script async src=gpt.js> — the ONLY external ad script.
+ *   5. inline runtime installer (observability `etus:ad` events + viewable
+ *      refresh controller) — off the time-to-first-ad path.
+ *
+ * Why inline (not an external module): an external bootstrap adds a fetch
+ * round-trip on the critical path and can race gpt.js (lib lands → empty queue
+ * → nothing). Consent: GPT forwards the IAB TCF string + auto-enters Limited
+ * Ads with a certified CMP — bring your own. Full-page nav only (no ClientRouter).
+ */
+import { AD_PRECONNECT_ORIGINS, bootGptScript, bootPpidScript, bootRuntimeScript, GPT_SRC } from '../index.ts'
+import type { AdsSiteConfig } from '../types.ts'
+
+interface Props {
+  config: AdsSiteConfig
+}
+const { config } = Astro.props
+// Master ad switch — emit the bootstrap unless mode is 'off'. In 'test' mode the
+// bootstrap is identical; only the per-slot NETWORK swaps to the sample network.
+const adsOn = (Astro.locals.adsMode ?? 'test') !== 'off'
+// Per-request CSP nonce (set in middleware) — every inline script carries it so
+// the bootstrap executes under strict-dynamic CSP; gpt.js (nonced) then
+// propagates trust to the scripts/iframes it injects.
+const nonce = Astro.locals.nonce
+---
+{adsOn && (
+  <Fragment>
+    {AD_PRECONNECT_ORIGINS.map((o) => <link rel="preconnect" href={o} crossorigin />)}
+    <script is:inline nonce={nonce} set:html={bootPpidScript()}></script>
+    <script is:inline nonce={nonce} set:html={bootGptScript(config)}></script>
+    <script is:inline async src={GPT_SRC} nonce={nonce} crossorigin="anonymous"></script>
+    <script is:inline nonce={nonce} set:html={bootRuntimeScript()}></script>
+  </Fragment>
+)}

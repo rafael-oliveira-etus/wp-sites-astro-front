@@ -1,0 +1,19 @@
+---
+/**
+ * <AdAnchor/> — bottom (or top) anchor. Inline OOP define (GAM manages
+ * positioning, no container needed). Enable Fluid + adaptive sizes in the GAM
+ * unit (audit data: fixed 320×100 had ~0 demand vs adaptive at $82–91 eCPM).
+ */
+import { bootAnchorScript, effectiveNetworkCode, slotAllowed } from '../index.ts'
+import type { AnchorProps } from '../types.ts'
+
+interface Props extends AnchorProps {
+  config: { networkCode: string; testNetworkCode?: string }
+}
+const { config, position = 'bottom', adUnit, devices } = Astro.props
+const adsMode = Astro.locals.adsMode ?? 'test'
+const allowed = adsMode !== 'off' && slotAllowed(devices, Astro.locals.deviceClass ?? 'desktop')
+const script = allowed ? bootAnchorScript(effectiveNetworkCode(config, adsMode), adUnit, position) : ''
+const nonce = Astro.locals.nonce // strict-CSP nonce
+---
+{allowed && <script is:inline nonce={nonce} set:html={script}></script>}

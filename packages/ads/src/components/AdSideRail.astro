@@ -1,0 +1,18 @@
+---
+/**
+ * <AdSideRail/> — desktop left/right gutter ad (LEFT/RIGHT_SIDE_RAIL). Inline
+ * OOP define; GAM serves only on viewports wide enough for gutters.
+ */
+import { bootSideRailScript, effectiveNetworkCode, slotAllowed } from '../index.ts'
+import type { SideRailProps } from '../types.ts'
+
+interface Props extends SideRailProps {
+  config: { networkCode: string; testNetworkCode?: string }
+}
+const { config, side, adUnit, devices } = Astro.props
+const adsMode = Astro.locals.adsMode ?? 'test'
+const allowed = adsMode !== 'off' && slotAllowed(devices, Astro.locals.deviceClass ?? 'desktop')
+const script = allowed ? bootSideRailScript(effectiveNetworkCode(config, adsMode), adUnit, side) : ''
+const nonce = Astro.locals.nonce // strict-CSP nonce
+---
+{allowed && <script is:inline nonce={nonce} set:html={script}></script>}

@@ -1,0 +1,7 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["google-publisher-tag", "node"]
+  },
+  "include": ["src/**/*.ts", "src/**/*.astro", "test/**/*.ts"]
+}

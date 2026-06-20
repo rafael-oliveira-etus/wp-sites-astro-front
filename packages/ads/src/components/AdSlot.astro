@@ -1,0 +1,65 @@
+---
+/**
+ * <AdSlot/> — a single in-page ad slot.
+ *
+ * Renders a labelled, reserved-height container, then an INLINE script right
+ * after it that defines + displays the slot. Because the script follows the
+ * div, the div exists when defineSlot/display run during parse — no round-trip,
+ * no race. Reserved min-height (per breakpoint) = zero CLS. "Advertisement"
+ * label for Better Ads Standards.
+ */
+import {
+  bootSlotScript,
+  effectiveNetworkCode,
+  reserveHeightStyle,
+  reserveMediaCss,
+  slotAllowed,
+} from '../index.ts'
+import type { SlotProps } from '../types.ts'
+
+interface Props extends SlotProps {
+  config: { networkCode: string; testNetworkCode?: string }
+  class?: string
+  /** Disclosure label. Default "Advertisement". */
+  label?: string
+}
+const { config, class: className = '', label = 'Advertisement', id: idProp, ...rest } = Astro.props
+// Ad mode + device gating. 'off' → nothing; 'test' → sample network creatives;
+// excluded-device slots are never defined (no request, no CLS). The CF cache is
+// keyed by the same device signal, so render + cache always agree.
+const adsMode = Astro.locals.adsMode ?? 'test'
+const allowed = adsMode !== 'off' && slotAllowed(rest.devices, Astro.locals.deviceClass ?? 'desktop')
+const id = idProp ?? `ad-${rest.adUnit.replace(/\W/g, '-')}-${Math.random().toString(36).slice(2, 8)}`
+const net = effectiveNetworkCode(config, adsMode)
+const script = allowed ? bootSlotScript(net, { ...rest, id } as SlotProps & { id: string }) : ''
+const style = reserveHeightStyle(rest.reserve)
+const mediaCss = allowed ? reserveMediaCss(id, rest.reserve) : ''
+const nonce = Astro.locals.nonce // strict-CSP nonce for the inline define+display script
+---
+{allowed && (
+  <div class:list={['etus-ad', className]}>
+    <span class="etus-ad__label">{label}</span>
+    <div id={id} class="etus-ad__slot" style={style}></div>
+  </div>
+)}
+{allowed && mediaCss && <style is:inline set:html={mediaCss}></style>}
+{allowed && <script is:inline nonce={nonce} set:html={script}></script>}
+
+<style>
+  .etus-ad { margin: 1.5rem auto; text-align: center; }
+  .etus-ad__label {
+    display: block;
+    font: 600 10px/1 ui-monospace, "JetBrains Mono", monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted, #8aa8b6);
+    margin-bottom: 4px;
+  }
+  .etus-ad__slot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    contain: layout paint;
+  }
+</style>
