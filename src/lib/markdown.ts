@@ -1,10 +1,7 @@
-import { Marked } from 'marked';
-
-/** Shared Marked instance used by `renderPost`. */
-export const marked = new Marked({
-  gfm: true,
-  breaks: false,
-});
+// HTML post-processing helpers shared by the WordPress render path (wp-html.ts):
+// heading anchors + outline extraction and source-linked image normalization.
+// (Formerly also rendered local markdown posts; that path was removed when the
+// project became a strict WP-REST front.)
 
 export interface PostHeading {
   depth: 2 | 3;
@@ -58,23 +55,4 @@ export function rewriteImages(html: string): string {
     if (!/\bdecoding\s*=/i.test(a)) a += ' decoding="async"';
     return `<img${a}>`;
   });
-}
-
-/**
- * Strip WP affiliate shortcodes that survive import as raw body text. Today:
- * `[button url=… ]label[/button]` — the CTA is rendered from the post's
- * `exitLink` (editorial Editor's-pick card / classic exit button), so the raw
- * shortcode is duplicate noise. Idempotent; safe to call more than once.
- */
-export function stripShortcodes(md: string): string {
-  return md.replace(/\[button\b[^\]]*\][\s\S]*?\[\/button\]/gi, '');
-}
-
-// Render the post body AND extract an h2/h3 outline in a single pass.
-export function renderPost(source: string): RenderedPost {
-  const rawHtml = marked.parse(stripShortcodes(source), { async: false }) as string;
-  const headings: PostHeading[] = [];
-  const seen = new Map<string, number>();
-  const html = rewriteImages(addHeadingIds(rawHtml, seen, headings));
-  return { html, headings };
 }

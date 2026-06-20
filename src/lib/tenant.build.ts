@@ -5,8 +5,8 @@ import { type Tenant, tenantSchema } from './schemas';
 
 // ── SSR enablement: BUILD-ONLY tenant loaders ───────────────────────────────────
 // node:fs / process.cwd() live here, NOT in tenant.ts. Imported only by
-// astro.config.ts (runs in Node). Never import this from a route, component,
-// or content.config (those evaluate in the workerd prerender sandbox).
+// astro.config.ts (runs in Node). Never import this from a route or component
+// (those evaluate in the workerd prerender sandbox).
 
 export const TENANTS_DIR = resolve(process.cwd(), 'tenants');
 
@@ -15,10 +15,6 @@ export function loadTenant(id: string): Tenant {
   const raw = readFileSync(path, 'utf8');
   const parsed = parse(raw);
   return tenantSchema.parse({ ...parsed, id });
-}
-
-export function tenantContentDir(id: string): string {
-  return join(TENANTS_DIR, id, 'content');
 }
 
 export function tenantPublicDir(id: string): string {

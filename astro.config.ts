@@ -8,7 +8,6 @@ import { siteOrigin } from './src/lib/tenant';
 import {
   activeTenantIdFromEnv,
   loadTenant,
-  tenantContentDir,
   tenantPublicDir,
 } from './src/lib/tenant.build';
 
@@ -32,7 +31,6 @@ import {
 const TENANT_ID = activeTenantIdFromEnv();
 const TENANT_OBJ = loadTenant(TENANT_ID);
 const TENANT_JSON = JSON.stringify(TENANT_OBJ);
-const TENANT_CONTENT_DIR = tenantContentDir(TENANT_ID);
 const TENANT_LOGO_SVG = (() => {
   const logo = TENANT_OBJ.brand.logo;
   if (!logo.src.endsWith('.svg')) return '';
@@ -79,7 +77,6 @@ export default defineConfig({
       'import.meta.env.TENANT_ID': JSON.stringify(TENANT_ID),
       'import.meta.env.TENANT_JSON': JSON.stringify(TENANT_JSON),
       'import.meta.env.TENANT_LOGO_SVG': JSON.stringify(TENANT_LOGO_SVG),
-      'import.meta.env.TENANT_CONTENT_DIR': JSON.stringify(TENANT_CONTENT_DIR),
     },
     ssr: {
       // Workspace packages ship raw .astro/.ts source — Astro must bundle them
@@ -125,7 +122,6 @@ export default defineConfig({
     sitemap({
       changefreq: 'weekly',
       priority: 0.7,
-      filter: (page) => !/\/quiz\/[^/]+\/[^/]+\/(?!$)/.test(page),
       // T1.5.H17 — pass the i18n locale map so @astrojs/sitemap emits
       // `<xhtml:link rel="alternate" hreflang="…">` per URL. Our routes use
       // BCP-47 lowercase (`/en-us/...`) but the hreflang value should be the
