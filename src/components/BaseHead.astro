@@ -83,12 +83,13 @@ const robotsValue = noindex
 
 const defaultSchemas = [
   buildOrganizationSchema(TENANT),
-  buildWebSiteSchema(TENANT, locale),
+  buildWebSiteSchema(TENANT, locale, effectiveSiteName),
   buildWebPageSchema(TENANT, locale, {
     title: fullTitle,
     description: finalDescription,
     url: canonicalUrl,
     image: imageUrl,
+    siteName: effectiveSiteName,
   }),
 ].filter((s): s is Record<string, unknown> => s !== null);
 

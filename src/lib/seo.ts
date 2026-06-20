@@ -56,12 +56,13 @@ export function buildOrganizationSchema(tenant: Tenant): Record<string, unknown>
 export function buildWebSiteSchema(
   tenant: Tenant,
   locale: string,
+  siteName?: string,
 ): Record<string, unknown> {
   const display = localeDisplay(tenant, locale);
   const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'WebSite',
-    name: display.siteName,
+    name: siteName || display.siteName,
     url: absoluteUrl(tenant, `/${locale}`),
     inLanguage: locale,
   };
@@ -78,7 +79,7 @@ export function buildWebSiteSchema(
 export function buildWebPageSchema(
   tenant: Tenant,
   locale: string,
-  input: { title: string; description: string; url: string; image?: string },
+  input: { title: string; description: string; url: string; image?: string; siteName?: string },
 ): Record<string, unknown> {
   return {
     '@context': 'https://schema.org',
@@ -92,7 +93,7 @@ export function buildWebPageSchema(
       : undefined,
     isPartOf: {
       '@type': 'WebSite',
-      name: localeDisplay(tenant, locale).siteName,
+      name: input.siteName || localeDisplay(tenant, locale).siteName,
       url: absoluteUrl(tenant, `/${locale}`),
     },
   };
