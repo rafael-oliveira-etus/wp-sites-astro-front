@@ -1,0 +1,107 @@
+---
+// SSR blog post route (output:'server' → per-request; no prerender/getStaticPaths).
+// THIN RESOLVER: fetch data + 404, then hand off to the active theme's PostView.
+import { TENANT, localeDisplay } from '../../../../lib/tenant';
+import { findPost, postMeta, relatedByVertical } from '../../../../lib/content';
+import { postPath, blogHubPath, verticalHubPath, absoluteUrl } from '../../../../lib/url';
+import { type Vertical } from '../../../../lib/schemas';
+import { buildArticleSchema, buildBreadcrumbSchema, buildFaqSchema, buildPersonSchema } from '../../../../lib/seo';
+import { renderPost, type PostHeading } from '../../../../lib/markdown';
+import { resolveAuthor } from '../../../../lib/authors';
+import ClassicPostView from '../../../../themes/classic/PostView.astro';
+import EditorialPostView from '../../../../themes/editorial/PostView.astro';
+
+const POST_VIEWS = { classic: ClassicPostView, editorial: EditorialPostView } as const;
+
+const { locale, vertical, slug } = Astro.params as {
+  locale: string;
+  vertical: string;
+  slug: string;
+};
+const verticalTyped = vertical as Vertical;
+
+const entry = await findPost(locale, verticalTyped, slug);
+if (!entry) {
+  // Render the styled 404 page (not a bare text Response). /blog/<vertical>/<n>
+  // pagination URLs no longer hit this route (they live under /page/<n>), so this
+  // fires only for a genuinely missing post.
+  return Astro.rewrite('/404');
+}
+const post = entry.data;
+
+const display = localeDisplay(TENANT, locale);
+const verticalLabel = display.verticals[verticalTyped];
+const canonicalUrl = absoluteUrl(TENANT, postPath(locale, verticalTyped, slug));
+
+// Body: a single rendered HTML string for both themes. In-content ads are no
+// longer injected here — the external ad worker inserts them via its own selector
+// over the rendered HTML. The template's only ad output is one top marker (AdSlot).
+const out = renderPost(post.content);
+const bodyHtml = out.html;
+const headings: PostHeading[] = out.headings;
+const showToc = headings.length >= 2;
+
+// Named expert reviewer for this vertical (E-E-A-T) → byline + Person JSON-LD + AuthorBio.
+const author = resolveAuthor(TENANT, verticalTyped, post.author);
+const authorUrl = absoluteUrl(TENANT, `/${locale}/author/${author.id}`);
+
+const alternates = Object.entries(post.equivalents).map(([altLocale, altSlug]) => ({
+  hreflang: altLocale,
+  href: absoluteUrl(TENANT, postPath(altLocale, verticalTyped, altSlug)),
+}));
+
+const articleSchema = buildArticleSchema(TENANT, locale, {
+  title: post.title,
+  description: post.description,
+  url: canonicalUrl,
+  image: post.ogImage,
+  publishedAt: post.publishedAt,
+  updatedAt: post.updatedAt,
+  author: { name: author.name, url: author.url ?? authorUrl },
+});
+
+const crumbItems = [
+  { label: display.nav.home, href: `/${locale}` },
+  { label: display.nav.blog, href: blogHubPath(locale) },
+  { label: verticalLabel, href: verticalHubPath(locale, verticalTyped) },
+  { label: post.title },
+];
+const breadcrumb = buildBreadcrumbSchema(
+  crumbItems.map((c) => ({
+    name: c.label,
+    url: absoluteUrl(TENANT, c.href ?? postPath(locale, verticalTyped, slug)),
+  })),
+);
+
+// Related by shared vertical (imported posts ship empty relatedSlugs).
+const related = await relatedByVertical(locale, verticalTyped, slug, 4);
+const prefetchHrefs = related.map((rp) => {
+  const m = postMeta(rp);
+  return postPath(locale, m.vertical, m.slug);
+});
+
+const PostView = POST_VIEWS[TENANT.theme] ?? ClassicPostView;
+const schemas = [articleSchema, breadcrumb, buildPersonSchema({ ...author, url: authorUrl })];
+// FAQPage JSON-LD when the post authors FAQ (editorial answer-first / GEO).
+if (post.faq.length > 0) {
+  schemas.push(buildFaqSchema(post.faq.map((f) => ({ question: f.q, answer: f.a }))));
+}
+---
+
+<PostView
+  locale={locale}
+  verticalTyped={verticalTyped}
+  post={post}
+  display={display}
+  canonicalUrl={canonicalUrl}
+  bodyHtml={bodyHtml}
+  headings={headings}
+  showToc={showToc}
+  author={author}
+  authorUrl={authorUrl}
+  alternates={alternates}
+  schemas={schemas}
+  crumbItems={crumbItems}
+  related={related}
+  prefetchHrefs={prefetchHrefs}
+/>

@@ -1,0 +1,72 @@
+---
+// Editorial theme — answer-first "Key takeaways" briefing box. Rendered high in
+// the reading lane (above the body) so the page leads with the answer: best for
+// scanning readers AND for AI-citation/GEO (extractive engines lift the summary).
+// Renders nothing when there are no takeaways, so the layout is correct on posts
+// that don't author them.
+interface Props {
+  items: string[];
+  title: string;
+}
+const { items, title } = Astro.props;
+---
+
+{items.length > 0 && (
+  <aside class="kt ed-reveal" aria-label={title}>
+    <p class="kt-title">{title}</p>
+    <ul class="kt-list">
+      {items.map((item) => <li>{item}</li>)}
+    </ul>
+  </aside>
+)}
+
+<style>
+  .kt {
+    margin: 0 0 2.5rem;
+    padding: 1.5rem 1.75rem;
+    border-radius: 1rem;
+    background: var(--e-accent-tint);
+    border: 1px solid var(--e-line);
+    border-left: 3px solid var(--e-accent);
+  }
+
+  .kt-title {
+    margin: 0 0 0.85rem;
+    font-family: var(--e-font-display);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--e-accent);
+  }
+
+  .kt-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 0.7rem;
+  }
+
+  .kt-list li {
+    position: relative;
+    padding-left: 1.6rem;
+    font-family: var(--e-font-body);
+    font-size: 1.0625rem;
+    line-height: 1.55;
+    color: var(--e-ink);
+  }
+
+  /* Hairline check-mark built from borders — no icon font, no SVG fetch. */
+  .kt-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.18em;
+    width: 0.55rem;
+    height: 0.95rem;
+    border: solid var(--e-accent);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+  }
+</style>

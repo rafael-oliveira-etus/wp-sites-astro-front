@@ -1,0 +1,32 @@
+{
+  // SSR enablement: Frontend on Cloudflare WORKERS with @astrojs/cloudflare v13.
+  // output:'server' → blog routes SSR per-request, quiz/index/404/sw prerendered
+  // to static assets. The Worker (`main`) serves SSR; ASSETS serves prerendered
+  // files. `main` is the adapter's real subpath export (returns { fetch }).
+  //
+  // SESSION KV is required by the v13 adapter (default sessionKVBindingName)
+  // even though we use no runtime KV — an id-less binding fails `wrangler deploy`.
+  // The id below is a PLACEHOLDER and only used by local `dev`/`cf-typegen`;
+  // `wrangler dev` does not need a real remote namespace.
+  //
+  // This top-level config is for LOCAL dev + cf-typegen ONLY. Per-site deploy
+  // config is NOT declared here — it is generated per site from
+  // sites.manifest.json by scripts/gen-wrangler.mjs (own Worker + own SESSION KV
+  // each), driven by .github/workflows/deploy-fleet.yml. The old [env.<tenant>]
+  // blocks were removed (they did not inherit top-level bindings and did not
+  // scale to the network). See docs/blog-platform/fleet-deploy.md.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "frontend",
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "binding": "ASSETS", "directory": "./dist", "not_found_handling": "404-page", "html_handling": "drop-trailing-slash" },
+  // WP_CACHE: stale-while-revalidate cache for WordPress REST responses on
+  // headless tenants (src/lib/wp-runtime.ts). Placeholder id for local dev;
+  // real namespaces are provisioned per site by scripts/gen-wrangler.mjs.
+  "kv_namespaces": [
+    { "binding": "SESSION", "id": "0000000000000000000000000000spike" },
+    { "binding": "WP_CACHE", "id": "0000000000000000000000000wpcache" }
+  ],
+  "observability": { "enabled": true }
+}

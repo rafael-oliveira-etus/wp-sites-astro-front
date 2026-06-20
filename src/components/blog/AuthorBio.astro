@@ -1,0 +1,88 @@
+---
+import type { ResolvedAuthor } from '../../lib/authors';
+
+interface Props {
+  author: ResolvedAuthor;
+  locale: string;
+  reviewedByLabel: string;
+}
+const { author, locale, reviewedByLabel } = Astro.props;
+const linkedin = author.sameAs.find((u) => /linkedin\.com/i.test(u)) || author.sameAs[0];
+---
+
+<aside class="author-bio">
+  {author.avatar && (
+    <img class="author-avatar" src={author.avatar} alt={author.name} width="64" height="64" loading="lazy" decoding="async" />
+  )}
+  <div class="author-meta">
+    <span class="reviewed-by">{reviewedByLabel}</span>
+    <a class="author-name" href={`/${locale}/author/${author.id}`}>{author.name}</a>
+    {author.title && <span class="author-title">{author.title}</span>}
+    {author.bio && <p class="author-bio-text">{author.bio}</p>}
+    {linkedin && (
+      <a class="author-link" href={linkedin} rel="noopener nofollow noreferrer" target="_blank">LinkedIn ↗</a>
+    )}
+  </div>
+</aside>
+
+<style>
+  .author-bio {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    margin: 2.5rem 0;
+    padding: 1.25rem;
+    border: 1px solid color-mix(in srgb, var(--color-fg) 10%, transparent);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--color-fg) 3%, transparent);
+  }
+
+  .author-avatar {
+    border-radius: 999px;
+    flex-shrink: 0;
+  }
+
+  .author-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+  }
+
+  .reviewed-by {
+    font-size: 0.6875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-muted);
+  }
+
+  .author-name {
+    font-weight: 600;
+    color: var(--color-fg);
+    text-decoration: none;
+    font-size: 1.0625rem;
+  }
+
+  .author-name:hover {
+    color: var(--color-primary);
+  }
+
+  .author-title {
+    font-size: 0.875rem;
+    color: var(--color-muted);
+  }
+
+  .author-bio-text {
+    margin: 0.4rem 0 0;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--color-fg);
+  }
+
+  .author-link {
+    margin-top: 0.4rem;
+    font-size: 0.8125rem;
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+</style>

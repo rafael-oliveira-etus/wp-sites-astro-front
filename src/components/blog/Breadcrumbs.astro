@@ -1,0 +1,47 @@
+---
+// Visual breadcrumb trail. JSON-LD BreadcrumbList is emitted separately by the
+// route (buildBreadcrumbSchema) — this is the rendered nav only.
+interface Crumb {
+  label: string;
+  href?: string;
+}
+interface Props {
+  items: Crumb[];
+  ariaLabel: string;
+}
+const { items, ariaLabel } = Astro.props;
+---
+
+<nav class="breadcrumb" aria-label={ariaLabel}>
+  {items.map((item, i) => (
+    <Fragment>
+      {item.href ? (
+        <a href={item.href}>{item.label}</a>
+      ) : (
+        <span aria-current="page">{item.label}</span>
+      )}
+      {i < items.length - 1 && <span class="sep"> › </span>}
+    </Fragment>
+  ))}
+</nav>
+
+<style>
+  .breadcrumb {
+    color: var(--color-muted);
+    font-size: 0.8125rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .breadcrumb a {
+    color: var(--color-muted);
+    text-decoration: none;
+  }
+
+  .breadcrumb a:hover {
+    color: var(--color-primary);
+  }
+
+  .sep {
+    opacity: 0.6;
+  }
+</style>

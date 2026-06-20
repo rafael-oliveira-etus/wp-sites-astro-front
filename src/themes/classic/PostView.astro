@@ -1,0 +1,289 @@
+---
+// Classic theme — post page. EXTRACTED VERBATIM from the original
+// [locale]/blog/[vertical]/[slug].astro template+styles (the A/B baseline; output
+// must equal the pre-theme page). Data is fetched in the route and passed as props.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import WebpushPrompt from '../../components/WebpushPrompt.astro';
+import Breadcrumbs from '../../components/blog/Breadcrumbs.astro';
+import AdSlot from '../../components/blog/AdSlot.astro';
+import ShareBar from '../../components/blog/ShareBar.astro';
+import RelatedPosts from '../../components/blog/RelatedPosts.astro';
+import Toc from '../../components/blog/Toc.astro';
+import ReadingProgress from '../../components/blog/ReadingProgress.astro';
+import AuthorBio from '../../components/blog/AuthorBio.astro';
+import type { PostHeading } from '../../lib/markdown';
+import type { ResolvedAuthor } from '../../lib/authors';
+import type { Post, Vertical } from '../../lib/schemas';
+
+export interface PostViewProps {
+  locale: string;
+  verticalTyped: Vertical;
+  post: Post;
+  display: ReturnType<typeof import('../../lib/tenant').localeDisplay>;
+  canonicalUrl: string;
+  bodyHtml: string;
+  headings: PostHeading[];
+  showToc: boolean;
+  author: ResolvedAuthor;
+  authorUrl: string;
+  alternates: { hreflang: string; href: string }[];
+  schemas: Record<string, unknown>[];
+  crumbItems: { label: string; href?: string }[];
+  related: Awaited<ReturnType<typeof import('../../lib/content').relatedByVertical>>;
+  prefetchHrefs: string[];
+}
+
+const {
+  locale,
+  verticalTyped,
+  post,
+  display,
+  canonicalUrl,
+  bodyHtml,
+  headings,
+  showToc,
+  author,
+  authorUrl,
+  alternates,
+  schemas,
+  crumbItems,
+  related,
+  prefetchHrefs,
+} = Astro.props as PostViewProps;
+---
+
+<BaseLayout
+  locale={locale}
+  vertical={verticalTyped}
+  title={post.seoTitle ?? post.title}
+  description={post.description}
+  type="article"
+  image={post.ogImage}
+  publishedTime={post.publishedAt.toISOString()}
+  modifiedTime={post.updatedAt.toISOString()}
+  author={author.name}
+  schemas={schemas}
+  alternates={alternates}
+>
+  <Fragment slot="head">
+    {prefetchHrefs.map((href) => (
+      <link rel="prefetch" href={href} as="document" />
+    ))}
+  </Fragment>
+  <ReadingProgress />
+  <Header locale={locale} />
+  <div class="article-layout">
+    <article id="main">
+      <header class="post-header">
+        <Breadcrumbs items={crumbItems} ariaLabel={display.ui.breadcrumbAria} />
+        <h1>{post.title}</h1>
+        <div class="post-meta">
+          <span>{display.ui.by} <a class="byline-author" href={authorUrl}>{author.name}</a></span>
+          <span aria-hidden="true">·</span>
+          <time datetime={post.publishedAt.toISOString()}>
+            {post.publishedAt.toLocaleDateString(locale)}
+          </time>
+          <span aria-hidden="true">·</span>
+          <span>{post.readingTimeMinutes} {display.ui.minRead}</span>
+        </div>
+      </header>
+
+      <AdSlot position="top" />
+
+      <div class="post-body" set:html={bodyHtml} />
+
+      <a class="exit-link" href={post.exitLink.url} rel="sponsored noopener" target="_blank">
+        {post.exitLink.label} →
+      </a>
+
+      <ShareBar
+        url={canonicalUrl}
+        title={post.title}
+        shareLabel={display.ui.share}
+        copyLabel={display.ui.copyLink}
+        copiedLabel={display.ui.linkCopied}
+      />
+
+      <AuthorBio author={author} locale={locale} reviewedByLabel={display.ui.reviewedBy} />
+
+      <RelatedPosts posts={related} locale={locale} heading={display.ui.relatedPosts} />
+    </article>
+
+    <aside class="rail">
+      <div class="rail-sticky">
+        {showToc && <Toc headings={headings} title={display.ui.onThisPage} />}
+      </div>
+    </aside>
+  </div>
+  <Footer locale={locale} />
+  <WebpushPrompt locale={locale} surface="post" />
+  <script
+    is:inline
+    nonce={Astro.locals.nonce}
+    data-astro-rerun
+    define:vars={{
+      postProps: {
+        post_slug: post.slug,
+        vertical: verticalTyped,
+        reading_time_min: post.readingTimeMinutes,
+        related_count: related.length,
+        author_name: author.name,
+        published_at: post.publishedAt.toISOString(),
+        updated_at: post.updatedAt.toISOString(),
+      },
+    }}
+  >
+    if (window.etus && window.etus.track) {
+      var loadedAt = Date.now();
+      window.etus.track('post_viewed', postProps);
+      var link = document.querySelector('a.exit-link');
+      if (link) {
+        link.addEventListener('click', function () {
+          window.etus.track('exit_link_clicked', Object.assign({}, postProps, {
+            exit_url: link.href,
+            exit_label: (link.textContent || '').trim(),
+            time_on_post_ms: Date.now() - loadedAt,
+          }));
+          if (window.etus.flushBeacon) window.etus.flushBeacon();
+        });
+      }
+    }
+  </script>
+</BaseLayout>
+
+<style>
+  .article-layout {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3rem;
+  }
+
+  @media (min-width: 1024px) {
+    .article-layout {
+      grid-template-columns: minmax(0, 1fr) 16rem;
+    }
+  }
+
+  article {
+    min-width: 0;
+    max-width: 44rem;
+    width: 100%;
+    justify-self: center;
+  }
+
+  .post-header {
+    padding: 1rem 0 2rem;
+  }
+
+  .post-header h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 1rem;
+  }
+
+  .post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    color: var(--color-muted);
+    font-size: 0.875rem;
+  }
+
+  .exit-link {
+    display: inline-flex;
+    align-items: center;
+    margin: 1.5rem 0;
+    padding: 0.875rem 1.5rem;
+    background: var(--color-primary);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    text-decoration: none;
+  }
+
+  .post-body {
+    line-height: 1.7;
+    font-size: 1.0625rem;
+  }
+
+  .post-body :global(h2) {
+    margin: 2.5rem 0 1rem;
+    font-size: 1.5rem;
+    letter-spacing: -0.01em;
+    scroll-margin-top: 1.5rem;
+  }
+
+  .post-body :global(h3) {
+    margin: 2rem 0 0.75rem;
+    font-size: 1.25rem;
+    scroll-margin-top: 1.5rem;
+  }
+
+  .post-body :global(p) {
+    margin: 0 0 1rem;
+  }
+
+  .post-body :global(img) {
+    max-width: 100%;
+    height: auto;
+    border-radius: 0.5rem;
+    margin: 1.5rem 0;
+  }
+
+  .post-body :global(a) {
+    color: var(--color-primary);
+  }
+
+  .post-body :global(table) {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    font-size: 0.9375rem;
+  }
+
+  .post-body :global(th),
+  .post-body :global(td) {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+  }
+
+  .post-body :global(th) {
+    font-weight: 600;
+  }
+
+  .post-body :global(strong) {
+    font-weight: 600;
+  }
+
+  .post-body :global(ul),
+  .post-body :global(ol) {
+    margin: 0 0 1rem;
+    padding-left: 1.25rem;
+  }
+
+  .rail {
+    display: none;
+  }
+
+  @media (min-width: 1024px) {
+    .rail {
+      display: block;
+      min-width: 0;
+    }
+
+    .rail-sticky {
+      position: sticky;
+      top: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+  }
+</style>

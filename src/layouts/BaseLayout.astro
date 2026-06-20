@@ -1,0 +1,205 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import BaseHead from '../components/BaseHead.astro';
+import PageViewTracker from '../components/PageViewTracker.astro';
+import ServiceWorkerRegister from '../components/ServiceWorkerRegister.astro';
+import ConsentBanner from '../components/ConsentBanner.astro';
+import WebVitals from '../components/WebVitals.astro';
+import PixelsLoader from '../components/PixelsLoader.astro';
+import { TENANT, localeDisplay } from '../lib/tenant';
+import type { SeoProps } from '../lib/seo';
+import type { Vertical } from '../lib/schemas';
+
+type Props = SeoProps & {
+  locale: string;
+  /** Enable Astro view transitions (cross-page animations). Defaults to true. */
+  transitions?: boolean;
+  /** Emit `web_vitals` events (LCP, INP, CLS, TTFB, FCP). Defaults to true. */
+  webVitals?: boolean;
+  /** Vertical for multi-pixel matrix resolution. Null for non-vertical pages. */
+  vertical?: Vertical | null;
+};
+
+const {
+  locale,
+  transitions = true,
+  webVitals = true,
+  vertical = null,
+  ...seoProps
+} = Astro.props;
+const display = localeDisplay(TENANT, locale);
+
+const cssVars = [
+  `--color-bg: ${TENANT.brand.bgColor}`,
+  `--color-fg: ${TENANT.brand.textColor}`,
+  `--color-muted: ${TENANT.brand.mutedTextColor}`,
+  `--color-primary: ${TENANT.brand.primaryColor}`,
+  `--color-secondary: ${TENANT.brand.secondaryColor}`,
+].join('; ');
+---
+
+<!doctype html>
+<html lang={locale} style={cssVars}>
+  <head>
+    <BaseHead locale={locale} vertical={vertical} {...seoProps} />
+    {transitions && <ClientRouter />}
+    <slot name="head" />
+  </head>
+  <body>
+    <PageViewTracker />
+    <a class="skip-link" href="#main">{display.ui.skipLink}</a>
+    <slot />
+    <ConsentBanner locale={locale} />
+    <ServiceWorkerRegister />
+    {webVitals && <WebVitals />}
+    <PixelsLoader locale={locale} vertical={vertical} />
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    color-scheme: light;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    /* T1.9 — 100vh fallback for iOS Safari <15.4 / Android WebView 5-6
+       (~3-5% combined). 100dvh wins on modern browsers. */
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family:
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif,
+      'Apple Color Emoji',
+      'Segoe UI Emoji';
+    font-size: 16px;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: var(--color-primary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  img,
+  picture,
+  svg,
+  video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Sticky-footer pattern: body is flex column, main fills available space
+     so Footer pins to the viewport bottom when content is short. */
+  body > main,
+  body > article {
+    flex: 1 0 auto;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+    width: auto;
+    height: auto;
+    padding: 0.5rem 1rem;
+    background: var(--color-fg);
+    color: var(--color-bg);
+    border-radius: 0.25rem;
+    z-index: 1000;
+  }
+
+  /* T1.9 — color-mix() fallback for iOS Safari <16.4, Android WebView 5-6,
+     Samsung Internet <22, older Firefox. Without color-mix support, the
+     declarations using it become invalid → no border/background visible
+     (page is usable but visually broken). This @supports block restores
+     the most-visible elements with solid rgba approximations.
+     Modern browsers (color-mix support) skip this entire block. */
+  @supports not (color: color-mix(in srgb, red, blue)) {
+    /* Option buttons + form inputs — quiz funnel critical */
+    .options a.option,
+    .options button,
+    .field input {
+      border-color: rgba(31, 41, 55, 0.18);
+    }
+    .options a.option:hover,
+    .options a.option:focus-visible,
+    .options button:hover,
+    .options button:focus-visible {
+      border-color: var(--color-primary);
+      background: rgba(0, 0, 0, 0.04);
+    }
+    /* Quiz progress bar background */
+    .progress {
+      background: rgba(31, 41, 55, 0.10);
+    }
+    /* Footer separators + compliance dim text */
+    .site-footer {
+      background: #f4f6f8;
+      border-top-color: rgba(31, 41, 55, 0.12);
+    }
+    .footer-inner {
+      border-top-color: rgba(31, 41, 55, 0.10);
+    }
+    /* Back button (SPA quiz) */
+    .back-btn {
+      border-color: rgba(31, 41, 55, 0.14);
+      background: transparent;
+    }
+    /* Locale switcher links */
+    .locales a {
+      background: transparent;
+    }
+    .locales a[aria-current='true'] {
+      background: rgba(31, 41, 55, 0.08);
+    }
+    /* Noscript banner */
+    .noscript-msg {
+      background: rgba(12, 3, 235, 0.08);
+    }
+  }
+</style>

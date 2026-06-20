@@ -1,0 +1,193 @@
+---
+// Headless-WordPress catch-all (SSR, flat permalinks). Resolves a path to a WP
+// post, an author archive (/author/<slug>), or a category archive; everything
+// unresolved → styled 404. Lowest route priority — quiz/blog/static routes win
+// first. Only active for tenants with `blog.wpBaseUrl`; YAML tenants → /404.
+import { TENANT, localeDisplay } from '../lib/tenant';
+import { absoluteUrl, tenantPath } from '../lib/url';
+import { wpDepsFromRuntime } from '../lib/wp-runtime';
+import { getPostBySlug, getCategoryBySlug, getPostsPage, getTagBySlug, getAuthorPosts, getPageBySlug } from '../lib/wp';
+import { renderWpContent, wpSrcset } from '../lib/wp-html';
+import { wpArticleInput, wpPersonInput } from '../lib/wp-seo';
+import { buildArticleSchema, buildPersonSchema } from '../lib/seo';
+import WpPostView from '../components/blog/WpPostView.astro';
+import WpListView from '../components/blog/WpListView.astro';
+import type { WpPost, WpTerm } from '../lib/wp-types';
+import type { PostHeading } from '../lib/markdown';
+
+const wpBaseUrl = TENANT.blog?.wpBaseUrl;
+if (!wpBaseUrl) return Astro.rewrite('/404');
+
+const raw = (Astro.params.slug ?? '').replace(/^\/+|\/+$/g, '');
+let segments = raw.split('/').filter(Boolean);
+
+const deps = await wpDepsFromRuntime(wpBaseUrl);
+const locale = TENANT.defaultLocale;
+const display = localeDisplay(TENANT, locale);
+
+// Resolve which kind of page this path is.
+type Mode = 'post' | 'page' | 'list' | null;
+let mode: Mode = null;
+
+let post: WpPost | null = null;
+let listHeading = '';
+let canonicalUrl = '';
+
+// Strip a trailing /page/<N> (WP-native pagination) before kind-detection.
+let pageNum = 1;
+if (segments.length >= 2 && segments[segments.length - 2] === 'page') {
+  const n = segments[segments.length - 1];
+  if (!/^\d+$/.test(n) || Number(n) < 1) return Astro.rewrite('/404');
+  pageNum = Number(n);
+  segments = segments.slice(0, -2);
+  if (pageNum === 1) {
+    const dest = segments.length ? tenantPath(TENANT, `/${segments.join('/')}`) : '/';
+    return Astro.redirect(dest, 301);
+  }
+}
+
+let listPage = { posts: [] as WpPost[], page: pageNum, totalPages: 0, total: 0 };
+let listBasePath = '';
+// Home feed only: its heading is the site name (kept for <title>/a11y) but should
+// not show as a visible H1 — the header logo already states the site. Term
+// archives keep their visible heading.
+let listShowHeading = true;
+
+if (segments.length === 2 && segments[0] === 'author') {
+  if (pageNum > 1) return Astro.rewrite('/404'); // author archive is not paginated
+  canonicalUrl = absoluteUrl(TENANT, `/author/${segments[1]}`);
+  const result = await getAuthorPosts(deps, segments[1]);
+  if (!result) return Astro.rewrite('/404');
+  mode = 'list';
+  listHeading = result.author.name;
+  listPage = { posts: result.posts, page: 1, totalPages: 1, total: result.posts.length };
+  listBasePath = `/author/${segments[1]}`;
+} else if (segments.length === 2 && segments[0] === 'tag') {
+  const slug = segments[1];
+  listBasePath = `/tag/${slug}`;
+  canonicalUrl = absoluteUrl(TENANT, pageNum > 1 ? `${listBasePath}/page/${pageNum}` : listBasePath);
+  const tag = await getTagBySlug(deps, slug);
+  if (!tag) return Astro.rewrite('/404');
+  mode = 'list';
+  listHeading = tag.name;
+  listPage = await getPostsPage(deps, { tagId: tag.id, page: pageNum, perPage: 12 });
+  if (pageNum > 1 && listPage.posts.length === 0) return Astro.rewrite('/404');
+} else if (segments.length === 1) {
+  const slug = segments[0];
+  listBasePath = `/${slug}`;
+  if (pageNum === 1) {
+    canonicalUrl = absoluteUrl(TENANT, `/${slug}`);
+    post = await getPostBySlug(deps, slug);
+  }
+  if (post) {
+    mode = 'post';
+  } else {
+    const category = await getCategoryBySlug(deps, slug);
+    if (category) {
+      mode = 'list';
+      listHeading = category.name;
+      canonicalUrl = absoluteUrl(TENANT, pageNum > 1 ? `/${slug}/page/${pageNum}` : `/${slug}`);
+      listPage = await getPostsPage(deps, { categoryId: category.id, page: pageNum, perPage: 12 });
+      if (pageNum > 1 && listPage.posts.length === 0) return Astro.rewrite('/404');
+    } else if (pageNum === 1) {
+      // Standalone WP page (e.g. /termos-de-uso) — linked from menus/footer.
+      const page = await getPageBySlug(deps, slug);
+      if (!page) return Astro.rewrite('/404');
+      post = page;
+      mode = 'page';
+    } else {
+      return Astro.rewrite('/404');
+    }
+  }
+} else if (segments.length === 0) {
+  // bare /page/<N> — home feed paginated
+  mode = 'list';
+  listHeading = display.siteName;
+  listShowHeading = false;
+  listBasePath = '';
+  canonicalUrl = absoluteUrl(TENANT, `/page/${pageNum}`);
+  listPage = await getPostsPage(deps, { page: pageNum, perPage: 12 });
+  if (listPage.posts.length === 0) return Astro.rewrite('/404');
+} else {
+  return Astro.rewrite('/404');
+}
+
+// ── Post props (app-relative links; the WP host must not leak into navigation) ──
+let bodyHtml = '';
+let headings: PostHeading[] = [];
+let description = '';
+let image: string | undefined;
+let readingTimeMinutes = 1;
+let authorHref = '';
+let category: WpTerm | undefined;
+let categorySlugs: string[] = [];
+let schemas: Record<string, unknown>[] = [];
+if ((mode === 'post' || mode === 'page') && post) {
+  const rendered = renderWpContent(post.contentHtml, { wpBaseUrl });
+  bodyHtml = rendered.html;
+  headings = rendered.headings;
+  description = post.yoast?.description ?? post.excerpt;
+  if (mode === 'post') {
+    const authorSlug = post.author?.slug ?? '';
+    authorHref = tenantPath(TENANT, `/author/${authorSlug}`); // relative → stays in-app
+    const authorUrlAbs = absoluteUrl(TENANT, authorHref); // absolute for JSON-LD only
+    image = post.yoast?.ogImage ?? post.featuredMedia?.sourceUrl;
+    const wordCount = bodyHtml.replace(/<[^>]*>/g, ' ').split(/\s+/).filter(Boolean).length;
+    readingTimeMinutes = Math.max(1, Math.round(wordCount / 200));
+    category = post.terms.find((t) => t.taxonomy === 'category');
+    categorySlugs = post.terms.filter((t) => t.taxonomy === 'category').map((t) => t.slug);
+    schemas = [buildArticleSchema(TENANT, locale, wpArticleInput(post, canonicalUrl, authorUrlAbs))];
+    const person = wpPersonInput(post, authorUrlAbs);
+    if (person) schemas.push(buildPersonSchema(person));
+  }
+}
+---
+
+{(mode === 'post' || mode === 'page') && post ? (
+  <WpPostView
+    locale={locale}
+    title={post.title}
+    subtitle={post.subtitle}
+    description={description}
+    bodyHtml={bodyHtml}
+    headings={headings}
+    authorName={post.author?.name ?? TENANT.editorial?.name ?? display.siteName}
+    authorUrl={authorHref}
+    authorAvatar={post.author?.avatar}
+    publishedAt={post.publishedAt}
+    updatedAt={post.updatedAt}
+    categoryLabel={category?.name}
+    categoryHref={category ? tenantPath(TENANT, `/${category.slug}`) : undefined}
+    categorySlugs={categorySlugs}
+    image={image}
+    heroImage={post.featuredMedia?.sourceUrl}
+    heroAlt={post.featuredMedia?.alt}
+    heroWidth={post.featuredMedia?.width}
+    heroHeight={post.featuredMedia?.height}
+    heroSrcset={post.featuredMedia ? wpSrcset(post.featuredMedia) : undefined}
+    canonicalUrl={canonicalUrl}
+    byLabel={display.ui.by}
+    minReadLabel={display.ui.minRead}
+    onThisPageLabel={display.ui.onThisPage}
+    readingTimeMinutes={readingTimeMinutes}
+    schemas={schemas}
+    variant={mode === 'page' ? 'page' : 'post'}
+  />
+) : (
+  <WpListView
+    locale={locale}
+    heading={listHeading}
+    showHeading={listShowHeading}
+    description={`${listHeading} — ${display.siteName}`}
+    canonicalUrl={canonicalUrl}
+    posts={listPage.posts}
+    emptyLabel={display.ui.noPostsYet}
+    page={listPage.page}
+    totalPages={listPage.totalPages}
+    basePath={listBasePath}
+    prevPageLabel={display.ui.prevPage}
+    nextPageLabel={display.ui.nextPage}
+    pageLabel={display.ui.pageLabel}
+    paginationAria={display.ui.paginationAria}
+  />
+)}

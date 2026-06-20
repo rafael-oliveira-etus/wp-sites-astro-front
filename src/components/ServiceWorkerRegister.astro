@@ -1,0 +1,23 @@
+---
+// Registers the Etus service worker after the page is interactive — PRODUCTION ONLY.
+// SW source lives at /sw.js (emitted by src/pages/sw.js.ts).
+// T1.5: extra drain triggers — Safari/Firefox don't have BackgroundSync, so the
+// queue only drains when something signals the SW. We signal on: initial register,
+// `online` event, `controllerchange` (new SW takes over), and (Chrome) periodic via sync.
+//
+// DEV: the SW is a footgun locally. HTML is served network-first with a 2s timeout
+// that falls back to CACHED HTML; during a Vite recompile (often >2s) the SW serves
+// the stale cached page (with stale inline CSS), so edits look "stale across reloads
+// and even restarts". So in dev we DON'T register — and we actively UNREGISTER any
+// existing SW + nuke its caches so local review always reflects the latest build.
+//
+// T11: the IIFE body (dev unregister + prod register/nudge) moved to
+// src/lib/sw-register.ts, bundled as a hashed/cached /_astro/*.js module
+// <script> instead of ~1.3 KB of inline JS per page. The dev/prod split lives
+// inside that module (import.meta.env.DEV, statically replaced at build). Runs
+// once on import — no data-astro-rerun needed.
+---
+
+<script>
+  import '../lib/sw-register.ts';
+</script>

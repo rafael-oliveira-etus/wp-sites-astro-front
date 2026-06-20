@@ -1,0 +1,39 @@
+---
+export const prerender = true;
+import QuizStepView from '../../../../../components/QuizStepView.astro';
+import QuizSpaView from '../../../../../components/QuizSpaView.astro';
+import { allQuizzes, quizMeta } from '../../../../../lib/content';
+import type { Vertical } from '../../../../../lib/schemas';
+
+export async function getStaticPaths() {
+  const quizzes = await allQuizzes();
+  return quizzes.map((entry) => {
+    const meta = quizMeta(entry);
+    return {
+      params: { locale: meta.locale, vertical: meta.vertical, slug: meta.slug },
+      props: { entryId: entry.id },
+    };
+  });
+}
+
+const { locale, vertical, slug } = Astro.params;
+const { entryId } = Astro.props;
+
+const allEntries = await allQuizzes();
+const entry = allEntries.find((e) => e.id === entryId);
+if (!entry) throw new Error(`Quiz not found: ${entryId}`);
+const quiz = entry.data;
+const verticalTyped = vertical as Vertical;
+---
+
+{quiz.mode === 'spa' ? (
+  <QuizSpaView locale={locale} vertical={verticalTyped} slug={slug} quiz={quiz} />
+) : (
+  <QuizStepView
+    locale={locale}
+    vertical={verticalTyped}
+    slug={slug}
+    step={quiz.steps[0].id}
+    quiz={quiz}
+  />
+)}

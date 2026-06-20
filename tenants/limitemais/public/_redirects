@@ -1,0 +1,4 @@
+# Cloudflare Workers redirects — limitemais
+# Headless WordPress: flat permalinks, single locale. `/` is the SSR homepage
+# feed served by the Worker — NO root→locale redirect (that is a quiz/YAML
+# tenant concern). No redirect rules on purpose.

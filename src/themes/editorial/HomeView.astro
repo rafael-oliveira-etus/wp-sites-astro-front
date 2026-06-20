@@ -1,0 +1,364 @@
+---
+// Editorial theme — locale home (landing). The premium front page: a bold
+// featured-story HERO (newest post) with optional quiz CTA, then CURATED
+// per-vertical sections (one row of EditorialPostCards per vertical that has
+// posts) instead of one flat grid. Data is fetched in the route; this is pure
+// presentation. Props EXTEND the classic HomeView contract with `sections`
+// (per-vertical post lists) + `adUnitPrefix`, so the route's themed view-map
+// stays type-safe without touching Classic.
+//
+// SSG NOTE: this route is prerendered (one static HTML for ALL devices), so
+// there is NO `Astro.locals.deviceClass` here.
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import EditorialPostCard from './EditorialPostCard.astro';
+import type { HomeViewProps } from '../classic/HomeView.astro';
+import type { Vertical } from '../../lib/schemas';
+import { postMeta } from '../../lib/content';
+import { quizPath, postPath, verticalHubPath } from '../../lib/url';
+import { pictureHtml } from '../../lib/images';
+import './tokens.css';
+
+export interface HomeSection {
+  vertical: Vertical;
+  label: string;
+  posts: CollectionEntry<'post'>[];
+}
+
+export interface EditorialHomeViewProps extends HomeViewProps {
+  /** Curated per-vertical rows (only verticals that have posts). */
+  sections: HomeSection[];
+  /** Per-site ad-unit name prefix (e.g. "gat") → `<prefix>_home_<position>`. */
+  adUnitPrefix: string;
+}
+
+const {
+  locale,
+  display,
+  featuredQuiz,
+  featuredQuizMeta,
+  posts,
+  alternates,
+  sections,
+} = Astro.props as EditorialHomeViewProps;
+
+const featured = posts[0];
+const featuredMeta = featured ? postMeta(featured) : null;
+const featuredHref = featuredMeta
+  ? postPath(locale, featuredMeta.vertical, featuredMeta.slug)
+  : null;
+
+const sectionsWithPosts = sections.filter((s) => s.posts.length > 0);
+---
+
+<BaseLayout
+  locale={locale}
+  title={display.siteName}
+  description={display.description}
+  alternates={alternates}
+>
+  <Header locale={locale} />
+
+  <div class="ed">
+    <main id="main" class="wrap">
+      {/* ── HERO — newest post as a bold featured story (+ optional quiz CTA) ── */}
+      <section class="ed-hero-home ed-reveal">
+        {featured && featuredMeta && featuredHref ? (
+          <a class="ed-feature" href={featuredHref}>
+            {featured.data.ogImage && (
+              <span
+                class="ed-feature-media"
+                set:html={pictureHtml(featured.data.ogImage, featured.data.title, {
+                  eager: true,
+                  sizes: '(min-width: 980px) 40rem, 100vw',
+                })}
+              />
+            )}
+            <span class="ed-feature-body">
+              <span class="ed-feature-kicker">{display.verticals[featuredMeta.vertical]}</span>
+              <h1 class="ed-feature-title">{featured.data.title}</h1>
+              <p class="ed-feature-dek">{featured.data.description}</p>
+              <span class="ed-feature-cta">
+                {display.ui.continueLabel} →
+              </span>
+            </span>
+          </a>
+        ) : (
+          <div class="ed-hero-fallback">
+            <h1>{display.tagline}</h1>
+            <p class="ed-hero-lede">{display.description}</p>
+          </div>
+        )}
+
+        {featuredQuiz && featuredQuizMeta && (
+          <a
+            class="ed-quiz-cta"
+            href={quizPath(locale, featuredQuizMeta.vertical, featuredQuizMeta.slug)}
+          >
+            <span class="ed-quiz-eyebrow">{display.tagline}</span>
+            <span class="ed-quiz-title">{featuredQuiz.data.title} →</span>
+          </a>
+        )}
+      </section>
+
+      {/* ── CURATED PER-VERTICAL SECTIONS ── */}
+      {sectionsWithPosts.map((section) => (
+        <Fragment>
+          <section class="ed-section ed-reveal">
+            <header class="ed-section-head">
+              <h2>{section.label}</h2>
+              <a class="ed-section-all" href={verticalHubPath(locale, section.vertical)}>
+                {display.nav.blog} →
+              </a>
+            </header>
+            <ul class="ed-cards">
+              {section.posts.map((p) => (
+                <EditorialPostCard
+                  post={p}
+                  locale={locale}
+                  verticalLabel={display.verticals[postMeta(p).vertical]}
+                  minReadLabel={display.ui.minRead}
+                />
+              ))}
+            </ul>
+          </section>
+        </Fragment>
+      ))}
+    </main>
+  </div>
+
+  <Footer locale={locale} />
+</BaseLayout>
+
+<style>
+  /* ── Layout shell ── */
+  .wrap {
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 0 1.25rem 1rem;
+  }
+
+  /* ── HERO ── */
+  .ed-hero-home {
+    display: grid;
+    gap: 1.5rem;
+    padding: 2.5rem 0 1rem;
+  }
+
+  @media (min-width: 980px) {
+    .ed-hero-home {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      align-items: stretch;
+      gap: 2rem;
+    }
+  }
+
+  /* Featured story — large editorial card */
+  .ed-feature {
+    display: flex;
+    flex-direction: column;
+    border-radius: 1.25rem;
+    overflow: hidden;
+    background: var(--e-surface-raised);
+    border: 1px solid var(--e-line);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  @media (min-width: 720px) {
+    .ed-feature {
+      flex-direction: row;
+      align-items: stretch;
+    }
+    .ed-feature-media {
+      flex: 1 1 52%;
+      min-width: 0;
+    }
+    .ed-feature-body {
+      flex: 1 1 48%;
+    }
+  }
+
+  .ed-feature-media {
+    display: block;
+  }
+
+  .ed-feature-media :global(img) {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    display: block;
+  }
+
+  .ed-feature-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.85rem;
+    padding: 1.75rem;
+  }
+
+  @media (min-width: 980px) {
+    .ed-feature-body {
+      padding: 2.5rem;
+    }
+  }
+
+  .ed-feature-kicker {
+    font-family: var(--e-font-display);
+    font-size: 0.8125rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--e-accent);
+  }
+
+  .ed-feature-title {
+    margin: 0;
+    font-family: var(--e-font-display);
+    font-size: var(--e-h1);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    color: var(--e-ink);
+  }
+
+  .ed-feature-dek {
+    margin: 0;
+    font-family: var(--e-font-display);
+    font-size: var(--e-dek);
+    line-height: 1.45;
+    color: var(--e-muted);
+  }
+
+  .ed-feature-cta {
+    margin-top: 0.25rem;
+    font-family: var(--e-font-display);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--e-accent);
+  }
+
+  /* Fallback hero (no posts) */
+  .ed-hero-fallback {
+    padding: 1rem 0;
+  }
+
+  .ed-hero-fallback h1 {
+    margin: 0 0 1rem;
+    font-family: var(--e-font-display);
+    font-size: var(--e-h1);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+    color: var(--e-ink);
+  }
+
+  .ed-hero-lede {
+    margin: 0;
+    font-family: var(--e-font-display);
+    font-size: var(--e-dek);
+    color: var(--e-muted);
+    max-width: 38rem;
+  }
+
+  /* Quiz CTA — bold accent panel beside/under the featured story */
+  .ed-quiz-cta {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1.75rem;
+    border-radius: 1.25rem;
+    background: var(--e-accent);
+    color: #fff;
+    text-decoration: none;
+  }
+
+  .ed-quiz-eyebrow {
+    font-family: var(--e-font-display);
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.85;
+  }
+
+  .ed-quiz-title {
+    font-family: var(--e-font-display);
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ed-feature,
+    .ed-quiz-cta {
+      transition:
+        border-color 140ms ease,
+        transform 140ms ease,
+        box-shadow 140ms ease;
+    }
+    .ed-feature:hover {
+      border-color: var(--e-accent);
+      transform: translateY(-2px);
+      box-shadow: var(--e-shadow);
+    }
+    .ed-quiz-cta:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--e-shadow);
+    }
+  }
+
+  /* ── Per-vertical sections ── */
+  .ed-section {
+    padding: 2.5rem 0 0.5rem;
+  }
+
+  .ed-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--e-line);
+  }
+
+  .ed-section-head h2 {
+    margin: 0;
+    font-family: var(--e-font-display);
+    font-size: var(--e-h2);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--e-ink);
+  }
+
+  .ed-section-all {
+    flex: none;
+    font-family: var(--e-font-display);
+    font-size: 0.9rem;
+    font-weight: 650;
+    color: var(--e-accent);
+    text-decoration: none;
+  }
+
+  .ed-section-all:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .ed-cards {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  }
+
+</style>

@@ -1,0 +1,132 @@
+---
+import { TENANT, localeDisplay } from "../lib/tenant";
+import { footerData } from "../lib/wp-runtime";
+
+interface Props {
+  locale: string;
+}
+
+const { locale } = Astro.props;
+const display = localeDisplay(TENANT, locale);
+const year = new Date().getFullYear();
+
+const wpBaseUrl = TENANT.blog?.wpBaseUrl;
+const fd = wpBaseUrl ? await footerData(wpBaseUrl) : null;
+
+const localeLabel = (l: string) => {
+  const [lang, region] = l.split("-");
+  return `${lang.toUpperCase()}-${region.toUpperCase()}`;
+};
+
+const legal = TENANT.legal;
+const footer = display.footer;
+const hasLinks = Boolean(footer?.links?.length);
+const hasCompliance = Boolean(legal?.company);
+const hasDisclosure = Boolean(footer?.disclosure);
+const contactLabel = footer?.contactLabel ?? "Contact";
+
+// Footer CSS is split by branch and emitted via set:html so each build inlines
+// ONLY the footer it actually renders — headless ships the BOLT footer CSS, the
+// YAML/quiz tenants ship the classic footer CSS. (Previously both were in one
+// global block, so ~1.8KB of the other footer's CSS was dead weight per page.)
+const SITE_FOOTER_CSS = `.site-footer{margin-top:5rem;background:color-mix(in srgb,var(--color-fg) 3%,var(--color-bg));border-top:1px solid color-mix(in srgb,var(--color-fg) 10%,transparent);color:var(--color-muted);font-size:.8125rem;line-height:1.6}.footer-links{display:flex;flex-wrap:wrap;justify-content:center;gap:1.5rem 2.5rem;max-width:64rem;margin:0 auto;padding:2rem 1.25rem 1.25rem}.footer-links a{color:var(--color-fg);text-decoration:none;font-weight:500;font-size:.875rem}.footer-links a:hover{color:var(--color-primary);text-decoration:underline;text-underline-offset:3px}.footer-compliance{max-width:72rem;margin:0 auto;padding:1.25rem 1.25rem .75rem;text-align:left;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;column-gap:.625rem;row-gap:.375rem;color:var(--color-fg);font-size:.8125rem}.footer-compliance .sep{opacity:.35}.footer-compliance .sep-pipe{opacity:.45}.footer-compliance a{color:var(--color-fg);text-decoration:none;border-bottom:1px dotted color-mix(in srgb,var(--color-fg) 30%,transparent)}.footer-compliance a:hover{color:var(--color-primary);border-bottom-color:var(--color-primary)}.footer-disclosure{max-width:64rem;margin:0 auto;padding:.75rem 1.25rem 1.75rem;text-align:left;font-size:.8125rem;line-height:1.65;color:color-mix(in srgb,var(--color-fg) 78%,transparent);white-space:pre-line}.footer-links+.footer-compliance,.footer-links+.footer-disclosure,.footer-compliance+.footer-disclosure{padding-top:.5rem}.footer-inner{max-width:64rem;margin:0 auto;padding:1.25rem 1.25rem 1.75rem;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.5rem 1.25rem;border-top:1px solid color-mix(in srgb,var(--color-fg) 8%,transparent);font-size:.75rem}.copyright{margin:0;color:var(--color-muted)}.locales{display:inline-flex;gap:.25rem;align-items:center}.locales a{display:inline-flex;align-items:center;min-height:44px;padding:.625rem .875rem;border-radius:.375rem;color:var(--color-muted);text-decoration:none;font-size:.75rem;font-weight:500;letter-spacing:.04em;transition:color 120ms ease,background-color 120ms ease}.locales a:hover{color:var(--color-fg);background:color-mix(in srgb,var(--color-fg) 5%,transparent)}.locales a[aria-current="true"]{color:var(--color-fg);background:color-mix(in srgb,var(--color-fg) 7%,transparent);cursor:default}@media (max-width:480px){.footer-compliance{flex-direction:column;gap:.25rem}.footer-compliance .sep,.footer-compliance .sep-pipe{display:none}}`;
+const BOLT_FOOTER_CSS = `.bolt-footer{background:var(--footer-bg,#0a0a0a);color:var(--footer-fg,#fff);line-height:1.5}.bf-top,.bf-bottom{max-width:72rem;margin:0 auto;padding:.85rem 1rem;display:flex;justify-content:space-between;gap:1rem 2rem;flex-wrap:wrap}.bf-bottom{padding-top:0}.bolt-footer a{color:inherit;text-decoration:none}.bolt-footer :where(p,figure,ul){margin:0}.bolt-footer :where(p,figure)+:where(p,figure){margin-top:.25rem}.bf-menu-first,.bf-menu-second{display:flex;gap:1.25rem;flex-wrap:wrap}.bf-menu-first a,.bf-menu-second a{font-weight:700}.bf-bottom-right{text-align:right}.bf-bottom-right .bf-menu-second{justify-content:flex-end}.bf-copyright{margin:.35rem 0 0;opacity:.85;font-size:1rem}.bf-brand-mob{display:none}.bf-disclaimer{color:var(--footer-fg,#000);font-size:.75rem;line-height:1.5;max-width:72rem;margin:0 auto;padding:.5rem 1rem}@media (max-width:768px){.bolt-footer{background:var(--footer-bg-mob,var(--footer-bg,#0a0a0a));color:var(--footer-fg-mob,var(--footer-fg,#fff))}.bf-brand-desk{display:none}.bf-brand-mob{display:block}.bf-top,.bf-bottom{flex-direction:column}.bf-bottom-right{text-align:left}.bf-bottom-right .bf-menu-second{justify-content:flex-start}.bf-disclaimer{color:var(--footer-fg-mob,#605d64)}}`;
+---
+
+{fd ? (
+  <footer class="bolt-footer">
+    <div class="bf-top">
+      {(fd.widgets.leftDesktop || fd.widgets.leftMobile) && (
+        <div class="bf-brand">
+          {fd.widgets.leftDesktop && <div class="bf-brand-desk" set:html={fd.widgets.leftDesktop} />}
+          {fd.widgets.leftMobile && <div class="bf-brand-mob" set:html={fd.widgets.leftMobile} />}
+        </div>
+      )}
+      {fd.first.length > 0 && (
+        <nav class="bf-menu-first" aria-label="Footer">
+          {fd.first.map((i) => <a href={i.url}>{i.label}</a>)}
+        </nav>
+      )}
+    </div>
+    <div class="bf-bottom">
+      {fd.widgets.subfooterLeft && <div class="bf-address" set:html={fd.widgets.subfooterLeft} />}
+      <div class="bf-bottom-right">
+        {fd.second.length > 0 && (
+          <nav class="bf-menu-second" aria-label="Legal">
+            {fd.second.map((i) => <a href={i.url}>{i.label}</a>)}
+          </nav>
+        )}
+        <p class="bf-copyright">{`© ${year} ${display.siteName} - Todos os direitos reservados`}</p>
+      </div>
+    </div>
+    {fd.widgets.disclaimer && <div class="bf-disclaimer" set:html={fd.widgets.disclaimer} />}
+  </footer>
+) : (
+  <footer class="site-footer">
+    {
+      hasLinks && (
+        <nav class="footer-links" aria-label="Legal">
+          {footer!.links.map((link) => (
+            <a href={link.href}>{link.label}</a>
+          ))}
+        </nav>
+      )
+    }
+
+    {
+      hasCompliance && legal?.company && (
+        <p class="footer-compliance">
+          <span>{legal.company.name}</span>
+          <span class="sep">·</span>
+          <span>
+            {legal.company.taxIdLabel}: {legal.company.taxId}
+          </span>
+          <span class="sep">·</span>
+          <span>{legal.company.address}</span>
+          <span class="sep">·</span>
+          <span>
+            {contactLabel}:{" "}
+            <a href={`mailto:${legal.company.contactEmail}`}>
+              {legal.company.contactEmail}
+            </a>
+          </span>
+          {legal.company.contactPhone && (
+            <>
+              <span class="sep sep-pipe">|</span>
+              <span>
+                <a
+                  href={`tel:${legal.company.contactPhone.replace(/[^+\d]/g, "")}`}
+                >
+                  {legal.company.contactPhone}
+                </a>
+              </span>
+            </>
+          )}
+        </p>
+      )
+    }
+
+    {hasDisclosure && <p class="footer-disclosure">{footer!.disclosure}</p>}
+
+    <div class="footer-inner">
+      <p class="copyright">© {year} {display.siteName}.</p>
+      {
+        TENANT.locales.length > 1 && (
+          <nav class="locales" aria-label={display.ui.languageNavAria}>
+            {TENANT.locales.map((l) => (
+              <a
+                href={`/${l}`}
+                hreflang={l}
+                aria-current={l === locale ? "true" : undefined}
+              >
+                {localeLabel(l)}
+              </a>
+            ))}
+          </nav>
+        )
+      }
+    </div>
+  </footer>
+)}
+
+<style is:inline set:html={wpBaseUrl ? BOLT_FOOTER_CSS : SITE_FOOTER_CSS}></style>

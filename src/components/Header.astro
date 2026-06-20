@@ -1,0 +1,261 @@
+---
+import { TENANT, localeDisplay } from '../lib/tenant';
+import { localePath } from '../lib/url';
+import { wpMenu, boltConfig } from '../lib/wp-runtime';
+
+interface Props {
+  locale: string;
+  variant?: 'default' | 'minimal';
+}
+
+const { locale, variant = 'default' } = Astro.props;
+const display = localeDisplay(TENANT, locale);
+
+// Headless tenants: render the WordPress header nav menu (falls back to the Blog
+// link if there is no auth / no matching menu location).
+const wpBaseUrl = TENANT.blog?.wpBaseUrl;
+const headerMenu = wpBaseUrl
+  ? await wpMenu(wpBaseUrl, [TENANT.blog?.menus?.header, 'header-menu', 'primary', 'main', 'header', 'menu-1', 'top'])
+  : [];
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl) : null;
+const apiLogo = cfg?.branding.logoUrl || '';
+const homeHref = wpBaseUrl ? '/' : localePath(locale);
+const blogHref = wpBaseUrl ? '/' : `${localePath(locale)}/blog`;
+const logo = TENANT.brand.logo;
+const isAbsolute = apiLogo ? true : /^https?:\/\//.test(logo.src);
+const logoSrc = apiLogo || (isAbsolute ? logo.src : `/${logo.src}`);
+const isVector = !isAbsolute && logoSrc.endsWith('.svg');
+const base = logoSrc.replace(/\.[^.]+$/, '');
+
+// SSR enablement: the inline SVG is baked at build time by astro.config.ts (vite
+// .define → import.meta.env.TENANT_LOGO_SVG) — no node:fs at render, so this
+// survives both the workerd prerender (quiz) and the SSR request path (blog).
+// The baked SVG already has class/width/height stripped+re-emitted; we add the
+// locale-specific role + aria-label here (a pure string op, sandbox-safe).
+let inlineSvg: string | null = null;
+if (isVector) {
+  const baked = (import.meta.env.TENANT_LOGO_SVG as string) || '';
+  inlineSvg = baked
+    ? baked.replace(
+        /<svg([^>]*)>/i,
+        (_m, attrs) => `<svg${attrs} role="img" aria-label="${display.siteName}">`,
+      )
+    : null;
+}
+---
+
+<header
+  class:list={['site-header', variant]}
+  transition:persist="site-header"
+>
+  <div class="header-inner">
+  <a class="brand" href={homeHref} aria-label={display.siteName}>
+    {inlineSvg ? (
+      <Fragment set:html={inlineSvg} />
+    ) : isAbsolute ? (
+      <img
+        class="brand-logo"
+        src={logoSrc}
+        alt={display.siteName}
+        width={logo.width}
+        height={logo.height}
+        decoding="async"
+        fetchpriority="high"
+      />
+    ) : isVector ? (
+      <img
+        class="brand-logo"
+        src={logoSrc}
+        alt={display.siteName}
+        width={logo.width}
+        height={logo.height}
+        decoding="async"
+        fetchpriority="high"
+      />
+    ) : (
+      <picture>
+        <source srcset={`${base}.avif`} type="image/avif" />
+        <source srcset={`${base}.webp`} type="image/webp" />
+        <img
+          class="brand-logo"
+          src={logoSrc}
+          alt={display.siteName}
+          width={logo.width}
+          height={logo.height}
+          decoding="async"
+          fetchpriority="high"
+        />
+      </picture>
+    )}
+  </a>
+  {variant === 'default' && (wpBaseUrl ? (
+    <details class="nav-m">
+      <summary class="nav-burger" aria-label={display.ui.menuToggle}>
+        <svg class="i-open" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="3" y1="6" x2="21" y2="6" />
+          <line x1="3" y1="12" x2="21" y2="12" />
+          <line x1="3" y1="18" x2="21" y2="18" />
+        </svg>
+        <svg class="i-close" width="28" height="28" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+          <line x1="5" y1="5" x2="19" y2="19" />
+          <line x1="19" y1="5" x2="5" y2="19" />
+        </svg>
+      </summary>
+      <nav aria-label={display.ui.primaryNavAria}>
+        {headerMenu.length > 0 ? (
+          headerMenu.map((item) => <a href={item.url}>{item.label}</a>)
+        ) : (
+          <a href={blogHref}>{display.nav.blog}</a>
+        )}
+      </nav>
+    </details>
+  ) : (
+    <nav aria-label={display.ui.primaryNavAria}>
+      {headerMenu.length > 0 ? (
+        headerMenu.map((item) => <a href={item.url}>{item.label}</a>)
+      ) : (
+        <a href={blogHref}>{display.nav.blog}</a>
+      )}
+    </nav>
+  ))}
+  </div>
+</header>
+
+<style is:global>
+  .site-header {
+    border-bottom: 1px solid color-mix(in srgb, var(--color-fg) 8%, transparent);
+  }
+
+  /* Inner wrapper aligns the logo + menu with the content/footer container
+     below (72rem, centered, 1rem side padding). The border-bottom stays
+     full-width on .site-header. */
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    max-width: 72rem;
+    margin: 0 auto;
+    padding: 1rem;
+  }
+
+  .site-header .brand {
+    display: inline-flex;
+    align-items: center;
+    color: var(--color-fg);
+    text-decoration: none;
+  }
+
+  .site-header .brand-logo,
+  .site-header .brand svg.brand-logo {
+    height: 1.75rem;
+    width: auto;
+    display: block;
+  }
+
+  .site-header nav {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .site-header nav a {
+    color: var(--color-fg);
+    text-decoration: none;
+    font-weight: 500;
+    opacity: 0.8;
+  }
+
+  .site-header nav a:hover {
+    opacity: 1;
+  }
+
+  /* Mobile hamburger (headless blog header only — .nav-m is the <details>).
+     States are explicit (:not([open]) / [open]) so the menu never relies on the
+     UA's closed-<details> hiding, which the .site-header nav rule above could
+     otherwise override. */
+  .nav-m {
+    position: relative;
+  }
+  .nav-m summary {
+    list-style: none;
+    cursor: pointer;
+  }
+  .nav-m summary::-webkit-details-marker {
+    display: none;
+  }
+  .nav-burger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    color: var(--color-fg);
+  }
+  .nav-m .i-close {
+    display: none;
+  }
+  .nav-m[open] .i-open {
+    display: none;
+  }
+  .nav-m[open] .i-close {
+    display: block;
+  }
+  /* Closed: menu hidden on load regardless of inherited display rules. */
+  .nav-m:not([open]) > nav {
+    display: none;
+  }
+  /* Open: full-screen overlay. */
+  .nav-m[open] > nav {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: var(--color-bg);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1.5rem;
+    font-size: 1.25rem;
+  }
+  /* Raise the toggle above the overlay so it can close it (icon is now ✕). */
+  .nav-m[open] > summary {
+    position: fixed;
+    top: 1rem;
+    right: 1.25rem;
+    z-index: 1001;
+  }
+  /* Lock body scroll while open (progressive enhancement; no-op without :has()). */
+  body:has(.nav-m[open]) {
+    overflow: hidden;
+  }
+
+  @media (min-width: 48rem) {
+    .nav-m > summary {
+      display: none;
+    }
+    /* Reveal the nav when the <details> is closed on desktop. Modern engines hide
+       closed-<details> content via the ::details-content pseudo (content-visibility:
+       hidden) — display alone can't override that; older engines use display:none on
+       the children, which the `display:flex !important` below overrides. Both covered. */
+    .nav-m::details-content {
+      content-visibility: visible !important;
+    }
+    /* Always inline on desktop, regardless of [open]. !important + explicit
+       resets win over the mobile [open]/:not([open]) rules and inherited values. */
+    .nav-m > nav {
+      display: flex !important;
+      position: static;
+      inset: auto;
+      background: none;
+      z-index: auto;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+      font-size: inherit;
+    }
+  }
+</style>

@@ -1,0 +1,80 @@
+---
+// Cloudflare Turnstile invisible widget. Renders only if tenant has Turnstile
+// enabled + a site key. Token is written to the hidden input `turnstile_token`
+// (FormData picks it up at submit time and the worker verifies via siteverify).
+//
+// We use explicit render (api.js?render=explicit) so we can mount on a target
+// element of our choosing and re-execute on token expiry. Invisible size means
+// no UI unless Cloudflare's heuristics flag the visitor.
+import { TENANT } from '../lib/tenant';
+
+const turnstile = TENANT.tracking.turnstile;
+const enabled = Boolean(turnstile?.enabled && turnstile?.siteKey);
+const siteKey = enabled ? turnstile!.siteKey : '';
+---
+
+{enabled && (
+  <div class="turnstile-slot" data-turnstile-slot>
+    <input type="hidden" name="turnstile_token" data-turnstile-input value="" />
+    <div data-turnstile-mount aria-hidden="true"></div>
+  </div>
+
+  <script is:inline data-astro-rerun define:vars={{ siteKey }}>
+    (function () {
+      var slot = document.querySelector('[data-turnstile-slot]');
+      if (!slot) return;
+      if (slot.dataset.bound === '1') return;
+      slot.dataset.bound = '1';
+
+      var input = slot.querySelector('[data-turnstile-input]');
+      var mount = slot.querySelector('[data-turnstile-mount]');
+      var widgetId = null;
+
+      function render() {
+        if (!window.turnstile || !mount || widgetId !== null) return;
+        try {
+          widgetId = window.turnstile.render(mount, {
+            sitekey: siteKey,
+            size: 'invisible',
+            action: 'lead-submit',
+            callback: function (token) { if (input) input.value = token; },
+            'error-callback': function () { if (input) input.value = ''; },
+            'expired-callback': function () { if (input) input.value = ''; reset(); },
+            'timeout-callback': function () { reset(); },
+          });
+        } catch (_) {}
+      }
+
+      function reset() {
+        if (window.turnstile && widgetId !== null) {
+          try { window.turnstile.reset(widgetId); } catch (_) {}
+        }
+      }
+
+      // The CF script may not have loaded yet when this inline runs. Poll briefly.
+      if (window.turnstile) {
+        render();
+      } else {
+        var tries = 0;
+        var poll = window.setInterval(function () {
+          tries++;
+          if (window.turnstile) {
+            window.clearInterval(poll);
+            render();
+          } else if (tries > 50) {
+            // ~5s without script: give up silently. Form still submits;
+            // worker will accept since `turnstile_token` is empty (and tenant
+            // hasn't configured strict server-side enforcement).
+            window.clearInterval(poll);
+          }
+        }, 100);
+      }
+    })();
+  </script>
+
+  <style>
+    .turnstile-slot {
+      display: none; /* Invisible widget — nothing for the user to see. */
+    }
+  </style>
+)}

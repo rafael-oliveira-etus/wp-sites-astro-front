@@ -1,0 +1,725 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from './Header.astro';
+import Footer from './Footer.astro';
+import TurnstileWidget from './TurnstileWidget.astro';
+import { TENANT, localeDisplay } from '../lib/tenant';
+import { quizStepPath, quizPath, absoluteUrl } from '../lib/url';
+import { buildQuizSchema } from '../lib/seo';
+import { resolveRedirect } from '../lib/redirect';
+import type { Quiz, Vertical } from '../lib/schemas';
+
+interface Props {
+  locale: string;
+  vertical: Vertical;
+  slug: string;
+  step: string; // step id, 'capture', or 'processing'
+  quiz: Quiz;
+}
+
+const { locale, vertical, slug, step, quiz } = Astro.props;
+
+const stepIds = quiz.steps.map((s) => s.id);
+const isQuestion = stepIds.includes(step);
+const isCapture = step === 'capture' && quiz.capture;
+const isProcessing = step === 'processing';
+const hasCapture = Boolean(quiz.capture);
+
+const display = localeDisplay(TENANT, locale);
+
+const totalSteps = stepIds.length + (hasCapture ? 1 : 0) + 1;
+const currentIndex =
+  isProcessing
+    ? totalSteps
+    : isCapture
+      ? stepIds.length + 1
+      : stepIds.indexOf(step) + 1;
+const progressLabel = `${currentIndex} / ${totalSteps}`;
+
+const currentStep = isQuestion ? quiz.steps.find((s) => s.id === step)! : null;
+const stepIndex = isQuestion ? stepIds.indexOf(step) : -1;
+const lastQuestionStep = stepIndex === stepIds.length - 1;
+
+const nextStepId = isQuestion
+  ? lastQuestionStep
+    ? hasCapture
+      ? 'capture'
+      : 'processing'
+    : stepIds[stepIndex + 1]
+  : isCapture
+    ? 'processing'
+    : null;
+
+const nextHref = nextStepId
+  ? quizStepPath(locale, vertical, slug, nextStepId)
+  : null;
+
+const redirect = await resolveRedirect(quiz, locale, vertical);
+
+// Landing = first question step. Indexable. Other steps noindex.
+const isLandingStep = isQuestion && stepIndex === 0;
+// The landing canonical is always the bare quiz URL (no /feature suffix).
+const landingCanonical = absoluteUrl(TENANT, quizPath(locale, vertical, slug));
+
+const alternates = Object.entries(quiz.equivalents).map(([altLocale, altSlug]) => ({
+  hreflang: altLocale,
+  href: absoluteUrl(
+    TENANT,
+    isLandingStep
+      ? quizPath(altLocale, vertical, altSlug)
+      : quizStepPath(altLocale, vertical, altSlug, step),
+  ),
+}));
+
+const seoSchemas = isLandingStep
+  ? [
+      buildQuizSchema(TENANT, locale, {
+        title: quiz.title,
+        description: quiz.description,
+        url: landingCanonical,
+        numberOfQuestions: quiz.steps.length,
+      }),
+    ]
+  : [];
+
+// Native browser prefetch hints. Computed at build time — no runtime cost.
+const prefetchHrefs = new Set<string>();
+if (isQuestion && currentStep) {
+  // Question step: prefetch each reachable next step URL.
+  for (const opt of currentStep.options) {
+    const nextForOpt = opt.next ?? nextStepId;
+    if (!nextForOpt) continue;
+    const href =
+      nextForOpt === stepIds[0]
+        ? quizPath(locale, vertical, slug)
+        : quizStepPath(locale, vertical, slug, nextForOpt);
+    prefetchHrefs.add(href);
+  }
+} else if (isCapture && nextHref) {
+  // Capture: prefetch /processing.
+  prefetchHrefs.add(nextHref);
+}
+if (isProcessing) {
+  // Processing: prefetch all final destination URLs (post or weighted/routed externals).
+  for (const href of redirect.prefetchHrefs) prefetchHrefs.add(href);
+}
+
+const redirectRuntimeJson = JSON.stringify(redirect.runtime);
+
+const quizBase = {
+  quiz_slug: quiz.slug,
+  vertical: quiz.vertical,
+  mode: quiz.mode,
+  total_steps: totalSteps,
+  total_questions: stepIds.length,
+  has_capture: hasCapture,
+};
+
+const captureFieldsShown = quiz.capture
+  ? Object.entries(quiz.capture.fields)
+      .filter(([, v]) => v.enabled)
+      .map(([k]) => k)
+  : [];
+---
+
+<BaseLayout
+  locale={locale}
+  vertical={vertical}
+  title={isLandingStep ? (quiz.seoTitle ?? quiz.title) : quiz.title}
+  description={quiz.description}
+  noindex={!isLandingStep}
+  canonical={isLandingStep ? landingCanonical : undefined}
+  schemas={seoSchemas}
+  alternates={alternates}
+>
+  <Fragment slot="head">
+    {Array.from(prefetchHrefs).map((href) => (
+      <link rel="prefetch" href={href} as="document" data-etus-prefetch />
+    ))}
+    {/* T2.15 — strip prefetch hints on Save-Data or 2g connections. The
+        prefetched documents would consume scarce mobile data with no benefit
+        if the user is on a slow/throttled link. */}
+    <script is:inline>
+      {`(function(){try{var c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(!c)return;if(c.saveData||c.effectiveType==='slow-2g'||c.effectiveType==='2g'){var ls=document.querySelectorAll('link[data-etus-prefetch]');for(var i=0;i<ls.length;i++)ls[i].parentNode&&ls[i].parentNode.removeChild(ls[i]);}}catch(_){}}());`}
+    </script>
+  </Fragment>
+  <script
+    is:inline
+    data-astro-rerun
+    define:vars={{
+      quizBase,
+      stepId: step,
+      stepIndex: currentIndex - 1,
+      isLandingStep,
+      isQuestion,
+      isCapture,
+      isProcessing,
+      captureFieldsShown,
+    }}
+  >
+    (function () {
+      if (!window.etus || !window.etus.track) return;
+      var t = window.etus.track;
+      // T1.5.B1 — dedup quiz lifecycle events across ClientRouter swap + bfcache.
+      // data-astro-rerun re-executes this body on every nav; without a guard,
+      // CAPI dedup fails (server-side event_id is fresh each time).
+      var firedKey = 'quiz:fired:' + quizBase.quiz_slug;
+      var fired = {};
+      try { fired = JSON.parse(sessionStorage.getItem(firedKey) || '{}') || {}; } catch (_) {}
+      function shouldFire(eventName, dedupKey) {
+        var k = eventName + ':' + dedupKey;
+        if (fired[k]) return false;
+        fired[k] = Date.now();
+        try { sessionStorage.setItem(firedKey, JSON.stringify(fired)); } catch (_) {}
+        return true;
+      }
+      if (isLandingStep && shouldFire('quiz_started', 'session')) {
+        t('quiz_started', Object.assign({}, quizBase, {
+          entry_step_id: stepId,
+        }));
+        window.etus.setQuizLifecycle('in_progress', Object.assign({}, quizBase, {
+          started_at: Date.now(),
+          last_step_id: stepId,
+          last_step_index: stepIndex,
+        }));
+      }
+      if ((isQuestion || isCapture) && shouldFire('quiz_step_viewed', stepId)) {
+        t('quiz_step_viewed', Object.assign({}, quizBase, {
+          step_id: stepId,
+          step_index: stepIndex,
+          step_kind: isCapture ? 'capture' : 'question',
+        }));
+        var lc = window.etus.getQuizLifecycle() || {};
+        window.etus.setQuizLifecycle('in_progress', Object.assign({}, lc, quizBase, {
+          last_step_id: stepId,
+          last_step_index: stepIndex,
+          last_step_viewed_at: Date.now(),
+        }));
+      }
+      if (isCapture && shouldFire('quiz_form_viewed', 'session')) {
+        t('quiz_form_viewed', Object.assign({}, quizBase, {
+          step_id: stepId,
+          fields_shown: captureFieldsShown,
+        }));
+      }
+      if (isProcessing && shouldFire('quiz_completed', 'session')) {
+        var lc2 = window.etus.getQuizLifecycle() || {};
+        var startedAt = lc2.started_at || Date.now();
+        t('quiz_completed', Object.assign({}, quizBase, {
+          time_on_quiz_ms: Date.now() - startedAt,
+          last_step_id: lc2.last_step_id || null,
+          last_step_index: lc2.last_step_index || null,
+        }));
+        // T1.4 — flush IMMEDIATELY since /processing page does location.replace
+        // after ~2.5s. Without flush, queued events would be lost on unload.
+        if (window.etus.flush) window.etus.flush();
+        window.etus.setQuizLifecycle('completed', Object.assign({}, lc2, {
+          completed_at: Date.now(),
+        }));
+      }
+    })();
+  </script>
+  <Header locale={locale} variant="minimal" />
+  <main
+    id="main"
+    class="quiz-shell"
+    data-quiz-slug={quiz.slug}
+    data-quiz-vertical={quiz.vertical}
+    data-quiz-mode={quiz.mode}
+  >
+    <div class="progress" aria-label={`${display.ui.progressAria}: ${progressLabel}`} transition:name="quiz-progress">
+      <div class="progress-bar" style={`transform: scaleX(${currentIndex / totalSteps})`}></div>
+      <span class="progress-label">{progressLabel}</span>
+    </div>
+
+    {isLandingStep && (
+      <header class="landing-intro">
+        <h1>{quiz.title}</h1>
+        <p class="lede">{quiz.description}</p>
+      </header>
+    )}
+
+    {isQuestion && currentStep && (
+      <section class="step question">
+        <h2>{currentStep.question}</h2>
+        <ul class="options" data-step-id={currentStep.id}>
+          {currentStep.options.map((opt) => {
+            const nextForOpt = opt.next ?? nextStepId;
+            const href = !nextForOpt
+              ? '#'
+              : nextForOpt === stepIds[0]
+                ? quizPath(locale, vertical, slug)
+                : quizStepPath(locale, vertical, slug, nextForOpt);
+            return (
+              <li>
+                <a class="option" href={href} data-value={opt.value}>
+                  {opt.label}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+    )}
+
+    {isCapture && quiz.capture && (
+      <section class="step capture">
+        <h1>{quiz.capture.headline}</h1>
+        <p class="lede">{quiz.capture.subheadline}</p>
+        <noscript><p class="noscript-msg">{display.noscript.capture}</p></noscript>
+        <form id="capture-form" novalidate>
+          {quiz.capture.fields.name.enabled && (
+            <label class="field">
+              <span>{quiz.capture.fields.name.label}</span>
+              <input
+                type="text"
+                name="name"
+                placeholder={quiz.capture.fields.name.placeholder}
+                required={quiz.capture.fields.name.required}
+                autocomplete="given-name"
+              />
+            </label>
+          )}
+          {quiz.capture.fields.email.enabled && (
+            <label class="field">
+              <span>{quiz.capture.fields.email.label}</span>
+              <input
+                type="email"
+                name="email"
+                placeholder={quiz.capture.fields.email.placeholder}
+                required={quiz.capture.fields.email.required}
+                autocomplete="email"
+                inputmode="email"
+                spellcheck="false"
+                autocapitalize="none"
+              />
+            </label>
+          )}
+          {quiz.capture.fields.phone.enabled && (
+            <label class="field">
+              <span>{quiz.capture.fields.phone.label}</span>
+              <input
+                type="tel"
+                name="phone"
+                placeholder={quiz.capture.fields.phone.placeholder}
+                required={quiz.capture.fields.phone.required}
+                autocomplete="tel"
+                inputmode="tel"
+              />
+            </label>
+          )}
+          <label class="consent">
+            <input type="checkbox" name="consent" required />
+            <span>{display.legalConsent}</span>
+          </label>
+          {/* Honeypot (T0.10) — invisible to humans, bots auto-fill anything fillable. */}
+          <input
+            type="text"
+            name="website"
+            class="honeypot"
+            tabindex="-1"
+            autocomplete="off"
+            aria-hidden="true"
+          />
+          <TurnstileWidget />
+          <button class="submit" type="submit" data-next-href={nextHref}>
+            {quiz.capture.submitLabel}
+          </button>
+          <p class="privacy">{quiz.capture.privacyNote}</p>
+        </form>
+      </section>
+    )}
+
+    {isProcessing && (
+      <section
+        class="step processing"
+        data-redirect-runtime={redirectRuntimeJson}
+        data-noscript-href={redirect.noscriptHref}
+      >
+        <div class="spinner" aria-hidden="true"></div>
+        <h1>{display.tagline}</h1>
+        <p class="lede">{display.description}</p>
+        <p class="redirect-note">
+          <a href={redirect.noscriptHref}>{display.ui.continueLabel} →</a>
+        </p>
+      </section>
+    )}
+  </main>
+  <Footer locale={locale} />
+</BaseLayout>
+
+<script>
+  import {
+    quizBaseFromDom,
+    validityToErrorCode,
+    submitLead,
+    nowMs,
+  } from '../lib/analytics-client';
+
+  const root = document.querySelector<HTMLElement>('main.quiz-shell');
+  const quizBase = quizBaseFromDom(root);
+
+  const optionsList = document.querySelector<HTMLUListElement>('ul.options');
+  if (optionsList) {
+    const stepId = optionsList.dataset.stepId!;
+    const stepEnteredAt = nowMs();
+    optionsList.addEventListener('click', (e) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest<HTMLAnchorElement>('a.option[data-value]');
+      if (!link) return;
+      const value = link.dataset.value!;
+      const label = (link.textContent || '').trim();
+      try {
+        const raw = sessionStorage.getItem('quiz:answers') ?? '{}';
+        const answers = JSON.parse(raw);
+        answers[stepId] = value;
+        sessionStorage.setItem('quiz:answers', JSON.stringify(answers));
+      } catch {}
+      window.etus?.track('quiz_answer_selected', {
+        ...quizBase,
+        step_id: stepId,
+        answer_value: value,
+        answer_label: label,
+        time_on_step_ms: nowMs() - stepEnteredAt,
+      });
+      // Let the link navigate normally — ClientRouter handles the transition.
+    });
+  }
+
+  const captureForm = document.querySelector<HTMLFormElement>('#capture-form');
+  if (captureForm) {
+    const submitBtn = captureForm.querySelector<HTMLButtonElement>('button.submit');
+    const nextHref = submitBtn?.dataset.nextHref ?? '';
+    const formEnteredAt = nowMs();
+    captureForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const errors: Array<{ field: string; error_code: string; error_message: string; type: string | null }> = [];
+      for (let i = 0; i < captureForm.elements.length; i++) {
+        const el = captureForm.elements[i] as HTMLInputElement;
+        if (!el.willValidate || el.checkValidity()) continue;
+        errors.push({
+          field: el.name || el.id || `(unnamed-${i})`,
+          type: el.type || null,
+          error_code: validityToErrorCode(el.validity),
+          error_message: el.validationMessage,
+        });
+      }
+      if (errors.length) {
+        for (const err of errors) {
+          window.etus?.track('quiz_form_error', { ...quizBase, ...err });
+        }
+        captureForm.reportValidity();
+        return;
+      }
+      const formData = new FormData(captureForm);
+      const lead = Object.fromEntries(formData.entries());
+      try {
+        sessionStorage.setItem('quiz:lead', JSON.stringify(lead));
+      } catch {}
+      const formProperties = {
+        time_on_form_ms: nowMs() - formEnteredAt,
+        has_name: 'name' in lead && !!lead.name,
+        has_email: 'email' in lead && !!lead.email,
+        has_phone: 'phone' in lead && !!lead.phone,
+        consent_given: !!lead.consent,
+      };
+      // T1.2 — single submitLead call: identify + track('quiz_form_submitted') +
+      // flush. No duplicate event_id risk. Worker anti-fraud reads form.website
+      // / time_on_form_ms / turnstile_token from properties.
+      submitLead({
+        lead,
+        quizBase,
+        consentGiven: !!lead.consent,
+        formProperties,
+      });
+      if (nextHref) window.location.assign(nextHref);
+    });
+  }
+
+  const processing = document.querySelector<HTMLElement>('.processing');
+  if (processing) {
+    const noscriptHref = processing.dataset.noscriptHref ?? '';
+    const runtimeRaw = processing.dataset.redirectRuntime ?? '';
+
+    const pickWeighted = (urls: Array<{ url: string; weight: number }>) => {
+      const total = urls.reduce((s, u) => s + u.weight, 0);
+      let r = Math.random() * total;
+      for (const u of urls) {
+        r -= u.weight;
+        if (r <= 0) return u.url;
+      }
+      return urls[urls.length - 1].url;
+    };
+
+    const resolveDest = () => {
+      try {
+        const cfg = JSON.parse(runtimeRaw);
+        if (cfg.type === 'post') return cfg.href as string;
+        if (cfg.type === 'weighted') return pickWeighted(cfg.urls);
+        if (cfg.type === 'routed' || cfg.type === 'routed-external') {
+          const answers = JSON.parse(sessionStorage.getItem('quiz:answers') ?? '{}');
+          for (const rule of cfg.rules) {
+            if (answers[rule.when.questionKey] === rule.when.answerKey) {
+              if (cfg.type === 'routed') return rule.href as string;
+              return pickWeighted(rule.urls);
+            }
+          }
+          if (cfg.type === 'routed') return cfg.default.href as string;
+          return pickWeighted(cfg.default);
+        }
+      } catch {}
+      return noscriptHref;
+    };
+
+    const dest = resolveDest();
+    if (!dest) {
+      // No destination, nothing to do.
+    } else {
+      const isInternal = dest.startsWith('/');
+      window.setTimeout(async () => {
+        if (isInternal) {
+          // Smooth view-transition for internal navigation (post page).
+          try {
+            const mod = await import('astro:transitions/client');
+            await mod.navigate(dest, { history: 'replace' });
+            return;
+          } catch {
+            /* fall through to hard nav */
+          }
+        }
+        window.location.replace(dest);
+      }, 2500);
+    }
+  }
+</script>
+
+<style>
+  .quiz-shell {
+    max-width: 36rem;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  .progress {
+    position: relative;
+    height: 0.5rem;
+    background: color-mix(in srgb, var(--color-fg) 8%, transparent);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 2.5rem;
+  }
+
+  .progress-bar {
+    /* Composited animation — transform: scaleX runs on the GPU and avoids
+       layout/paint per frame (Lighthouse "Avoid non-composited animations").
+       Width stays at 100%; the inline style sets scaleX(0..1) from currentIndex. */
+    position: absolute;
+    inset: 0;
+    background: var(--color-primary);
+    transform-origin: 0 50%;
+    transition: transform 240ms ease;
+    will-change: transform;
+  }
+
+  .progress-label {
+    /* T1.15 — moved above the bar (was overlapping H1 at 320px viewports) */
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--color-muted);
+  }
+
+  .landing-intro {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+
+  .landing-intro h1 {
+    font-size: clamp(1.75rem, 4.5vw, 2.5rem);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.75rem;
+    color: var(--color-primary);
+  }
+
+  .step h1 {
+    font-size: clamp(1.5rem, 4vw, 2.25rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin: 0 0 1.5rem;
+  }
+
+  .step h2 {
+    font-size: clamp(1.25rem, 3vw, 1.625rem);
+    line-height: 1.2;
+    margin: 0 0 1.5rem;
+  }
+
+  .lede {
+    color: var(--color-muted);
+    font-size: 1.0625rem;
+    margin: 0 0 1.5rem;
+  }
+
+  .options {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .options a.option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 1rem 1.25rem;
+    background: transparent;
+    /* T2.19 — bumped from 12% to 18%: 12% was sub-3:1 contrast against the
+       page background on light themes, failing WCAG SC 1.4.11 for borders
+       used as the only visual affordance. */
+    border: 1px solid color-mix(in srgb, var(--color-fg) 18%, transparent);
+    border-radius: 0.625rem;
+    color: var(--color-fg);
+    font-size: 1rem;
+    text-decoration: none;
+    transition:
+      border-color 120ms ease,
+      background-color 120ms ease;
+  }
+
+  .options a.option:hover,
+  .options a.option:focus-visible {
+    border-color: var(--color-primary);
+    background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+    outline: none;
+  }
+
+  .field {
+    display: block;
+    margin-bottom: 1rem;
+  }
+
+  .field span {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-bottom: 0.375rem;
+  }
+
+  .field input {
+    width: 100%;
+    padding: 0.75rem 0.875rem;
+    border: 1px solid color-mix(in srgb, var(--color-fg) 18%, transparent);
+    border-radius: 0.5rem;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    /* T2.18 — iOS Safari zooms inputs when font-size < 16px on focus.
+       Pinning 16px here prevents the involuntary zoom on tap. */
+    font-size: 16px;
+  }
+
+  .field input:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 0;
+    border-color: transparent;
+  }
+
+  .consent {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.875rem;
+    color: var(--color-muted);
+  }
+
+  .consent input {
+    margin-top: 0.25rem;
+    flex-shrink: 0;
+  }
+
+  .submit {
+    width: 100%;
+    padding: 1rem 1.5rem;
+    background: var(--color-primary);
+    color: #fff;
+    border: 0;
+    border-radius: 0.625rem;
+    font-weight: 600;
+    font-size: 1rem;
+  }
+
+  .privacy {
+    margin: 1rem 0 0;
+    font-size: 0.8125rem;
+    color: var(--color-muted);
+    text-align: center;
+  }
+
+  /* Honeypot: off-screen positioning beats display:none (some bots skip
+     display:none fields). Untabbable + aria-hidden so accessibility tools
+     don't surface it either. */
+  .honeypot {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+    height: 0;
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .noscript-msg {
+    margin: 0 0 1rem;
+    padding: 0.875rem 1rem;
+    background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+    border-left: 3px solid var(--color-primary);
+    border-radius: 0.375rem;
+    font-size: 0.9375rem;
+    color: var(--color-fg);
+  }
+
+  .processing {
+    text-align: center;
+    padding: 4rem 0;
+  }
+
+  .spinner {
+    width: 2.5rem;
+    height: 2.5rem;
+    border: 3px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    margin: 0 auto 1.5rem;
+    animation: spin 800ms linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* T2.23 — respect prefers-reduced-motion. Progress bar still animates the
+     fill (essential affordance) but spinner stops spinning and quiz CTA loses
+     micro-interactions. WCAG SC 2.3.3 + Apple Mobile HIG. */
+  @media (prefers-reduced-motion: reduce) {
+    .progress-bar {
+      transition: none;
+    }
+    .spinner {
+      animation: none;
+      border-top-color: var(--color-primary);
+    }
+    .options a.option {
+      transition: none;
+    }
+  }
+
+  .redirect-note {
+    margin-top: 2rem;
+  }
+</style>

@@ -1,0 +1,16 @@
+---
+// Inert in-page ad marker — the template's ENTIRE ad responsibility. A separate
+// CF Worker selects on `.ad-unit` and fills it (GPT bootstrap, slot sizing, reserve
+// height, policy label, CLS — all the worker's job). Out-of-page formats need no div.
+// Bare by contract: exactly three attributes, no styling, no inner content.
+import { adDeviceAttr } from '../../lib/ad-slot';
+
+interface Props {
+  /** Logical in-page position. Only "top" is emitted today. */
+  position?: string;
+}
+const { position = 'top' } = Astro.props;
+const device = adDeviceAttr(Astro.locals.deviceClass ?? 'desktop');
+---
+
+<div class="ad-unit" data-position={position} data-device={device}></div>

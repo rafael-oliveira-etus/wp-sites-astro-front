@@ -1,0 +1,183 @@
+---
+// Headless-WordPress post page. WP data has a different shape than the YAML
+// `Post` type (no vertical/exitLink/faq), so this is a dedicated view rather than
+// the themed PostView. One top AdSlot marker (article page only) + rendered body.
+// Styling is self-contained (the themed PostView styles are scoped). Lean path:
+// renders through BlogLayout (no funnel JS); no TOC/right rail.
+import BlogLayout from '../../layouts/BlogLayout.astro';
+import Header from '../Header.astro';
+import Footer from '../Footer.astro';
+import AdSlot from './AdSlot.astro';
+import type { PostHeading } from '../../lib/markdown';
+
+interface Props {
+  locale: string;
+  title: string;
+  /** Optional post subtitle (WP `post_subtitle` meta). '' when unset → not rendered. */
+  subtitle?: string;
+  description: string;
+  bodyHtml: string;
+  headings: PostHeading[];
+  authorName: string;
+  authorUrl: string;
+  authorAvatar?: string;
+  publishedAt: Date;
+  updatedAt: Date;
+  categoryLabel?: string;
+  categoryHref?: string;
+  /** Category slugs → emitted as <meta property="article:cat"> so the BOLT
+   *  tracking JS (boltGetVertical) can detect the vertical (cc/emp/cd). */
+  categorySlugs?: string[];
+  image?: string;
+  heroImage?: string;
+  heroAlt?: string;
+  heroWidth?: number;
+  heroHeight?: number;
+  heroSrcset?: string;
+  canonicalUrl: string;
+  byLabel: string;
+  minReadLabel: string;
+  onThisPageLabel: string;
+  readingTimeMinutes: number;
+  schemas: Record<string, unknown>[];
+  /** 'page' = a standalone WP page (e.g. Terms): no byline/category/hero/ad/TOC. */
+  variant?: 'post' | 'page';
+}
+
+const {
+  locale, title, subtitle, description, bodyHtml,
+  authorName, authorAvatar,
+  publishedAt, updatedAt, image,
+  heroImage, heroAlt, heroWidth, heroHeight, heroSrcset,
+  canonicalUrl, byLabel, minReadLabel, readingTimeMinutes, schemas,
+  categorySlugs = [],
+  variant = 'post',
+} = Astro.props as Props;
+
+const isPage = variant === 'page';
+
+// BOLT slider: its markup (`.bolt-slider-container`) arrives inside the WP post
+// body. It's the only interactive widget on the lean (zero-JS) headless path, so
+// we ship its CSS+JS ONLY on posts that actually contain one. Styled to match
+// THIS site (not BOLT's look) — brand colors via the layout's --btn-*/--color-*.
+const hasSlider = !isPage && bodyHtml.includes('bolt-slider-container');
+
+// Tiny vanilla port of BOLT's sliderAnimator (prev/next via `data-shown`,
+// `.active` + `from-left|right` entrance class, end buttons disabled). Drops the
+// original GA dataLayer push (lean path has no analytics) and the never-rendered
+// dots. Injected inline, only when `hasSlider`.
+const SLIDER_JS = `(function(){var L=document.querySelectorAll('.post-body .bolt-slider-contain');for(var k=0;k<L.length;k++){(function(c){var t=c.querySelector('.bolt-slider-track');if(!t)return;var s=t.querySelectorAll('.slides'),p=c.querySelector('.bolt-slider-prev'),n=c.querySelector('.bolt-slider-next');function u(i){if(p)p.classList.toggle('disabled',i<=0);if(n)n.classList.toggle('disabled',i>=s.length-1)}function measure(){var mx=0;for(var j=0;j<s.length;j++){var h=s[j].offsetHeight;if(h>mx)mx=h}if(mx)t.style.minHeight=mx+'px'}function go(d){var i=parseInt(t.dataset.shown||'0',10),m=i+d;if(m<0||m>=s.length)return;s[i].classList.remove('active','from-left','from-right');s[m].classList.add('active',d>0?'from-right':'from-left');t.dataset.shown=m;u(m)}if(p)p.addEventListener('click',function(){if(!p.classList.contains('disabled'))go(-1)});if(n)n.addEventListener('click',function(){if(!n.classList.contains('disabled'))go(1)});measure();u(parseInt(t.dataset.shown||'0',10));window.addEventListener('load',measure);var rt;window.addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(measure,150)})})(L[k])}})();`;
+
+// Slider styling — faithful to BOLT's original look (warm-gray rounded track,
+// inline `1) 2)` counter in the button color, full-height side-bar prev/next with
+// a chevron), re-skinned to OUR brand vars (--btn-bg / --btn-fg) and system fonts
+// (no CA SaygonText). Inline + scoped by hand to `.post-body`; emitted only when
+// `hasSlider`. Keyframes gated on prefers-reduced-motion below.
+const SLIDER_CSS = `
+.post-body .bolt-slider-container{margin:2.5rem 0;}
+.post-body .bolt-slider-contain{position:relative;margin:0 auto;max-width:720px;width:100%}
+.post-body .bolt-slider{position:relative;margin:0;padding:2.25rem 0 0;overflow:hidden;margin-top: -50px;}
+.post-body .bolt-slider-track{position:relative;width:100%;min-height:6rem;margin:0;overflow:hidden;background:#f7f6f5;border-radius:10px;counter-reset:section}
+.post-body .bolt-slider-slide{position:absolute;top:0;left:0;width:100%;visibility:hidden;-webkit-user-select:none;user-select:none}
+.post-body .bolt-slider-slide.active{position:relative;visibility:visible}
+.post-body .bolt-slider-contain .slides{counter-increment:section;margin:0;padding:2.5rem 3rem}
+.post-body .bolt-slider-contain .text{margin:0;color:#35353b;font-size:1rem;line-height:1.8}
+.post-body .bolt-slider-contain .text::before{content:counter(section) ")";display:inline-block;margin-right:7px;color:var(--btn-bg,#ffbe6b);font-weight:600}
+.post-body .bolt-slider-prev,.post-body .bolt-slider-next{position:absolute;top:0;bottom:0;width:30px;margin-top:2.25rem;padding:0;border:0;background:var(--btn-bg,#ffbe6b);color:#000;cursor:pointer;z-index:2}
+.post-body .bolt-slider-prev{left:0;border-radius:10px 0 0 10px}
+.post-body .bolt-slider-next{right:0;border-radius:0 10px 10px 0}
+.post-body .bolt-slider-prev.disabled,.post-body .bolt-slider-next.disabled{background:#ebe9e8;color:#a6a6ab;cursor:default}
+.post-body .arrow-left,.post-body .arrow-right{display:block;width:10.5px;height:10.5px;margin:30px auto;border-left:2px solid var(--btn-fg,#0a0a0a);border-top:2px solid var(--btn-fg,#0a0a0a)}
+.post-body .arrow-left{transform:rotate(-45deg)}
+.post-body .arrow-right{transform:rotate(135deg)}
+.post-body .bolt-slider-prev:focus-visible,.post-body .bolt-slider-next:focus-visible{outline:2px solid var(--color-primary,#ff9a15);outline-offset:2px}
+.post-body .dots{display:none}
+@media (prefers-reduced-motion:no-preference){
+.post-body .bolt-slider-slide.from-left{animation:bolt-slide-left .2s forwards}
+.post-body .bolt-slider-slide.from-right{animation:bolt-slide-right .2s forwards}
+}
+@keyframes bolt-slide-left{0%{left:-2000px}to{left:0}}
+@keyframes bolt-slide-right{0%{left:2000px}to{left:0}}
+@media (max-width:30rem){.post-body .bolt-slider-contain .slides{padding:2rem 2.25rem}}
+`;
+
+// Post-page CSS via set:html so it ships ONLY on post/page renders. The catch-all
+// route imports both WpPostView and WpListView, so an Astro `<style>` here would
+// bundle into every list/feed page too (where these classes never render).
+// Paid-traffic preloader: a white full-screen overlay + spinner that is ON by
+// default (class added synchronously in <head>, before first paint → no flash).
+// The same head script then decides: visits carrying a `utm_source` param (ad
+// campaigns) KEEP it until the header ad reports ready (`HEADER_AD_LOADED` on
+// document) or a 7s fallback fires; every other visit removes it immediately,
+// before anything paints. Overlay is drawn with <html> pseudo-elements so no
+// body markup is needed and late DOM can't flash through. Posts only (not WP
+// standalone pages like Terms). `--color-primary` is injected on <html> by
+// BlogLayout, so the spinner picks up the tenant brand color.
+const PRELOADER_CSS = `html.preloader-active{overflow:hidden!important}html.preloader-active::before{content:"";position:fixed;inset:0;background:#fff;z-index:2147483646}html.preloader-active::after{content:"";position:fixed;top:50%;left:50%;width:44px;height:44px;margin:-22px 0 0 -22px;border:4px solid rgba(0,0,0,.15);border-top-color:var(--color-primary,#1f2937);border-radius:50%;animation:preloader-spin .8s linear infinite;z-index:2147483647}@keyframes preloader-spin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){html.preloader-active::after{animation:none}}`;
+const PRELOADER_JS = `(function(){var d=document.documentElement;d.classList.add('preloader-active');function rm(){d.classList.remove('preloader-active')}try{if(new URLSearchParams(location.search).has('utm_source')){document.addEventListener('HEADER_AD_LOADED',rm,{once:true});setTimeout(rm,7000)}else{rm()}}catch(e){rm()}})();`;
+
+const POST_CSS = `@media (min-width: 720px) {.top-desk-ad {min-height: 250px;}}@media (max-width: 480px) {.top-mob-ad {min-height: 80vw;margin-left: -16px;margin-right: -16px;}}.article-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:2rem;width:100%;max-width:72rem;margin:0 auto;padding:2rem 1rem 4rem}.article-layout>article{min-width:0;max-width:44rem;margin:0 auto}.post-sidebar{display:none}@media (min-width:1200px){.article-layout{grid-template-columns:minmax(0,44rem) 1fr 360px;gap:0}.article-layout>article{grid-column:1;margin:0}.post-sidebar{grid-column:3;display:block}}.post-header h1{font-size:clamp(1.7rem,4vw,2.6rem);line-height:1.15;margin:.25rem 0 .75rem}.post-subtitle{font-size:clamp(1.05rem,2.2vw,1.3rem);line-height:1.4;font-weight:400;color:var(--color-muted-text,#555851);margin:0 0 1rem}.post-meta{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;font-size:.9rem;color:var(--color-muted-text,#555851);margin-bottom:1.5rem}.post-avatar{border-radius:50%}.post-hero{margin:0 0 1.5rem}.post-hero img{width:100%;height:auto;aspect-ratio:16/9;object-fit:cover;border-radius:12px;display:block;background:#f1f4f7}.byline-author{color:inherit}.post-body{font-size:1.075rem;line-height:1.7;overflow-wrap:break-word}.post-body h2{font-size:1.5rem;margin:2rem 0 .75rem;line-height:1.25}.post-body h3{font-size:1.2rem;margin:1.5rem 0 .5rem}.post-body p{margin:0 0 1.1rem}.post-body ul,.post-body ol{margin:0 0 1.1rem;padding-left:1.25rem}.post-body img,.post-body picture{max-width:100%;height:auto;border-radius:8px}.post-body a{color:var(--color-primary,#0c7a3f)}.post-body .button-container{margin:2.5rem 0;padding:0 .5rem;text-align:center}.post-body .button{display:inline-flex;align-items:center;justify-content:center;width:100%;max-width:24rem;min-height:3.5rem;padding:1rem 1.5rem;border-radius:10px;background:var(--btn-bg,#ffbe6b);color:var(--btn-fg,#0a0a0a);font-size:1.05rem;font-weight:700;line-height:1.25;text-decoration:none;box-shadow:0 1px 2px rgba(0,0,0,.08)}.post-body .button .track{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:1;overflow:hidden;text-overflow:ellipsis}.post-body .button:hover{background:var(--btn-bg-hover,#ff9a15);color:var(--btn-fg-hover,#0a0a0a)}.post-body .button:focus-visible{outline:2px solid var(--color-primary,#ff9a15);outline-offset:2px}@media (prefers-reduced-motion:no-preference){.post-body .button{transition:background-color .2s ease,transform .14s ease,box-shadow .14s ease}.post-body .button:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.12)}}.post-body table{width:100%;border-collapse:collapse;margin:1.25rem 0}.post-body th,.post-body td{border:1px solid #e2e8f0;padding:.5rem .75rem;text-align:left}@media (max-width:480px){.post-meta{flex-wrap:nowrap;white-space:nowrap;gap:.3rem;font-size:clamp(.58rem,3.1vw,.8rem)}.post-meta .post-avatar{width:26px;height:26px}}`;
+---
+
+<BlogLayout
+  locale={locale}
+  title={title}
+  description={description}
+  type="article"
+  image={image}
+  canonical={canonicalUrl}
+  publishedTime={publishedAt.toISOString()}
+  modifiedTime={updatedAt.toISOString()}
+  author={authorName}
+  schemas={schemas}
+>
+  {!isPage && <style slot="head" is:inline set:html={PRELOADER_CSS} />}
+  {!isPage && <script slot="head" is:inline set:html={PRELOADER_JS} />}
+  {!isPage && categorySlugs.map((s) => <meta slot="head" property="article:cat" content={s} />)}
+  <Header locale={locale} />
+  <div class="ad-unit top-desk-ad" data-position="top" data-device="desk"></div>
+  <div class="article-layout">
+    <article id="main">
+      <header class="post-header">
+        <h1>{title}</h1>
+        {!isPage && subtitle && <p class="post-subtitle">{subtitle}</p>}
+        {!isPage && (
+          <div class="post-meta">
+            {authorAvatar && <img class="post-avatar" src={authorAvatar} alt={authorName} width="36" height="36" loading="lazy" decoding="async" />}
+            <span>{byLabel} <span class="byline-author">{authorName}</span></span>
+            <span aria-hidden="true">·</span>
+            <time datetime={publishedAt.toISOString()}>{publishedAt.toLocaleDateString(locale)}</time>
+            <span aria-hidden="true">·</span>
+            <span>{readingTimeMinutes} {minReadLabel}</span>
+          </div>
+        )}
+      </header>
+      <div class="ad-unit top-mob-ad" data-position="top" data-device="mob"></div>
+      {!isPage && heroImage && (
+        <figure class="post-hero">
+          <img
+            src={heroImage}
+            srcset={heroSrcset}
+            sizes="(min-width: 56rem) 768px, 100vw"
+            alt={heroAlt || title}
+            width={heroWidth ?? 1200}
+            height={heroHeight ?? 675}
+            fetchpriority="high"
+            decoding="async"
+          />
+        </figure>
+      )}
+
+      {!isPage && <AdSlot position="top" />}
+
+      <div class="post-body" set:html={bodyHtml} />
+      {hasSlider && <style is:inline set:html={SLIDER_CSS} />}
+      {hasSlider && <script is:inline set:html={SLIDER_JS} />}
+    </article>
+
+    {!isPage && <aside class="post-sidebar" aria-hidden="true"></aside>}
+  </div>
+  <Footer locale={locale} />
+</BlogLayout>
+
+<style is:inline set:html={POST_CSS}></style>

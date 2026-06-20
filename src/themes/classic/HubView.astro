@@ -1,0 +1,114 @@
+---
+// Classic theme — vertical hub (category) page. EXTRACTED VERBATIM from the
+// original [vertical]/[...page].astro template+styles. Data + getStaticPaths stay
+// in the route; this is pure presentation.
+import type { Page } from 'astro';
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Header from '../../components/Header.astro';
+import Footer from '../../components/Footer.astro';
+import Breadcrumbs from '../../components/blog/Breadcrumbs.astro';
+import PostCard from '../../components/blog/PostCard.astro';
+import Pagination from '../../components/blog/Pagination.astro';
+import { postMeta } from '../../lib/content';
+import type { Vertical } from '../../lib/schemas';
+
+export interface HubViewProps {
+  locale: string;
+  verticalTyped: Vertical;
+  page: Page<CollectionEntry<'post'>>;
+  display: ReturnType<typeof import('../../lib/tenant').localeDisplay>;
+  verticalLabel: string;
+  pageSuffix: string;
+  crumbItems: { label: string; href?: string }[];
+  schemas: Record<string, unknown>[];
+  alternates: { hreflang: string; href: string }[];
+  prefetchHrefs: string[];
+}
+
+const {
+  locale,
+  verticalTyped,
+  page,
+  display,
+  verticalLabel,
+  pageSuffix,
+  crumbItems,
+  schemas,
+  alternates,
+  prefetchHrefs,
+} = Astro.props as HubViewProps;
+---
+
+<BaseLayout
+  locale={locale}
+  vertical={verticalTyped}
+  title={`${verticalLabel}${pageSuffix}`}
+  description={`${verticalLabel} — ${display.description}`}
+  schemas={schemas}
+  alternates={alternates}
+>
+  <Fragment slot="head">
+    {prefetchHrefs.map((href) => (
+      <link rel="prefetch" href={href} as="document" />
+    ))}
+  </Fragment>
+  <Header locale={locale} />
+  <main id="main">
+    <header class="hub-header">
+      <Breadcrumbs items={crumbItems} ariaLabel={display.ui.breadcrumbAria} />
+      <h1>{verticalLabel}</h1>
+    </header>
+
+    {page.data.length === 0 ? (
+      <p class="empty">{display.ui.noPostsYet}</p>
+    ) : (
+      <ul class="post-grid">
+        {page.data.map((post) => (
+          <PostCard
+            post={post}
+            locale={locale}
+            verticalLabel={display.verticals[postMeta(post).vertical]}
+            minReadLabel={display.ui.minRead}
+          />
+        ))}
+      </ul>
+    )}
+
+    <Pagination page={page} prevLabel={display.ui.prevPage} nextLabel={display.ui.nextPage} />
+  </main>
+  <Footer locale={locale} />
+</BaseLayout>
+
+<style>
+  main {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 0;
+  }
+
+  .hub-header {
+    padding: 1rem 0 2rem;
+  }
+
+  .hub-header h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  .empty {
+    color: var(--color-muted);
+    padding: 4rem 0;
+    text-align: center;
+  }
+
+  .post-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  }
+</style>

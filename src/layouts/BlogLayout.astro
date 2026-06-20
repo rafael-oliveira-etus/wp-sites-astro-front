@@ -1,0 +1,179 @@
+---
+// Lean layout for the headless-WordPress blog path. Sibling of BaseLayout but
+// mounts NONE of the funnel/measurement machinery (no analytics, service
+// worker, consent, pixels, web-vitals) and NO ClientRouter — headless pages are
+// static HTML, all CSS inline. See docs/superpowers/specs/2026-06-18-lean-headless-blog-frontend-design.md
+import BaseHead from '../components/BaseHead.astro';
+import { TENANT, localeDisplay } from '../lib/tenant';
+import type { SeoProps } from '../lib/seo';
+import type { Vertical } from '../lib/schemas';
+import { boltConfig } from '../lib/wp-runtime';
+import {
+  hasTracking, trackingConfigJs, gtagSrc,
+  GTAG_INIT_JS, HIGH_PRIORITY_JS, INITGTM_TRIGGER_JS, TRACKING_LAZY_JS,
+} from '../lib/wp-tracking';
+
+type Props = SeoProps & {
+  locale: string;
+  /** Vertical for SEO/OG resolution. Null for non-vertical pages. */
+  vertical?: Vertical | null;
+};
+
+const { locale, vertical = null, ...seoProps } = Astro.props;
+const display = localeDisplay(TENANT, locale);
+
+const wpBaseUrl = TENANT.blog?.wpBaseUrl;
+const cfg = wpBaseUrl ? await boltConfig(wpBaseUrl) : null;
+const c = cfg?.colors ?? {};
+const cv = (key: keyof typeof c, fallback: string) => c[key] || fallback;
+const cssVars = [
+  `--color-primary: ${cv('identity_color', '#1f2937')}`,
+  `--color-bg: ${cv('header_bg', '#ffffff')}`,
+  `--color-fg: ${cv('menu_font_color', '#0a0a0a')}`,
+  `--color-muted: #555851`,
+  `--btn-bg: ${cv('button_color', cv('identity_color', '#1f2937'))}`,
+  `--btn-bg-hover: ${cv('button_color_hover', cv('identity_color', '#1f2937'))}`,
+  `--btn-fg: ${cv('button_font_color', '#ffffff')}`,
+  `--btn-fg-hover: ${cv('button_hover_font_color', '#ffffff')}`,
+  `--header-bg: ${cv('header_bg', '#ffffff')}`,
+  `--menu-fg: ${cv('menu_font_color', '#0a0a0a')}`,
+  `--footer-bg: ${cv('footer_bg', '#0a0a0a')}`,
+  `--footer-fg: ${cv('footer_font_color', '#ffffff')}`,
+  `--footer-bg-mob: ${cv('footer_bg_mob', cv('footer_bg', '#0a0a0a'))}`,
+  `--footer-fg-mob: ${cv('footer_font_color_mob', cv('footer_font_color', '#ffffff'))}`,
+  `--disclaimer-desk: ${cv('disclaimer_desktop', '#48464c')}`,
+  `--disclaimer-mob: ${cv('disclaimer_mobile', '#e6e0e9')}`,
+].join('; ');
+
+// Tracking (BOLT-identical). Injected only when the BOLT config API returns at
+// least one media/analytics ID; per-tracker SDKs load only when their ID exists.
+const tk = cfg?.tracking;
+const nonce = Astro.locals.nonce;
+---
+
+<!doctype html>
+<html lang={locale} style={cssVars}>
+  <head>
+    <BaseHead locale={locale} vertical={vertical} analytics={false} themeColor={c.identity_color} faviconUrl={cfg?.branding.faviconUrl || undefined} {...seoProps} />
+    <slot name="head" />
+    {hasTracking(tk) && (
+      <Fragment>
+        <script is:inline nonce={nonce} set:html={GTAG_INIT_JS}></script>
+        <script is:inline nonce={nonce} set:html={trackingConfigJs(tk)}></script>
+        {tk.gaId && <script async src={gtagSrc(tk.gaId)} nonce={nonce}></script>}
+        {tk.gaId && <script is:inline nonce={nonce} set:html={HIGH_PRIORITY_JS}></script>}
+        <script is:inline nonce={nonce} set:html={INITGTM_TRIGGER_JS}></script>
+      </Fragment>
+    )}
+  </head>
+  <body>
+    <a class="skip-link" href="#main">{display.ui.skipLink}</a>
+    <slot />
+    {hasTracking(tk) && (
+      <script is:inline nonce={nonce} set:html={TRACKING_LAZY_JS}></script>
+    )}
+  </body>
+</html>
+
+<style is:global>
+  :root {
+    color-scheme: light;
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    /* T1.9 — 100vh fallback for iOS Safari <15.4 / Android WebView 5-6
+       (~3-5% combined). 100dvh wins on modern browsers. */
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family:
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      Helvetica,
+      Arial,
+      sans-serif,
+      'Apple Color Emoji',
+      'Segoe UI Emoji';
+    font-size: 16px;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  a {
+    color: var(--color-primary);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  img,
+  picture,
+  svg,
+  video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  /* Sticky-footer pattern: body is flex column, main fills available space
+     so Footer pins to the viewport bottom when content is short. */
+  body > main,
+  body > article {
+    flex: 1 0 auto;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: -9999px;
+    top: auto;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+  }
+
+  .skip-link:focus {
+    left: 1rem;
+    top: 1rem;
+    width: auto;
+    height: auto;
+    padding: 0.5rem 1rem;
+    background: var(--color-fg);
+    color: var(--color-bg);
+    border-radius: 0.25rem;
+    z-index: 1000;
+  }
+
+  /* NOTE: the BaseLayout color-mix() @supports fallback is intentionally absent
+     here — the headless blog path renders none of the quiz/YAML-footer classes it
+     targeted, and no headless component uses color-mix(), so it was pure dead
+     weight in the inlined CSS. */
+</style>

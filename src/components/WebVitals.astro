@@ -1,0 +1,42 @@
+---
+// T2.3 — web_vitals telemetry (LCP, INP, CLS, TTFB, FCP).
+//
+// Uses the web-vitals library v5+ which reports each metric ONCE per page,
+// at the latest possible point in time (LCP fires on user input or
+// pagehide; CLS fires on pagehide). The script is gated on
+// `window.etus?.track`; the drain pattern (stub in analytics-boot.body.ts,
+// engine in lib/analytics-boot-engine.ts) guarantees calls land even before
+// the engine module finishes booting.
+//
+// Loaded conditionally per page — small (~3KB gz) but only useful where we
+// measure conversion outcomes. BaseLayout includes it by default; pages
+// that want to skip pass `webVitals={false}`.
+---
+
+<script>
+  import { onLCP, onINP, onCLS, onTTFB, onFCP, type Metric } from 'web-vitals';
+
+  type Rating = 'good' | 'needs-improvement' | 'poor';
+
+  function send(metric: Metric): void {
+    if (!window.etus?.track) return;
+    window.etus.track('web_vitals', {
+      metric_name: metric.name,
+      value: metric.value,
+      delta: metric.delta,
+      rating: metric.rating as Rating,
+      navigation_type: metric.navigationType,
+      // Long entries can balloon — clip to the first 5 for INP/LCP debug.
+      entries_count: metric.entries.length,
+    });
+  }
+
+  // `reportAllChanges: false` is the default (one event per metric); we
+  // explicitly set it so any future library default change doesn't double-count.
+  const opts = { reportAllChanges: false };
+  onLCP(send, opts);
+  onINP(send, opts);
+  onCLS(send, opts);
+  onTTFB(send, opts);
+  onFCP(send, opts);
+</script>

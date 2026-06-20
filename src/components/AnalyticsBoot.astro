@@ -1,0 +1,68 @@
+---
+import { TENANT } from '../lib/tenant';
+import { resolveAllPixels } from '../lib/tracking-resolver';
+import type { Vertical } from '../lib/schemas';
+import { BOOT_STUB } from './analytics-boot.body';
+
+interface Props {
+  locale: string;
+  /** Optional vertical for multi-pixel matrix resolution. */
+  vertical?: Vertical | null;
+}
+
+const { locale, vertical = null } = Astro.props;
+const resolvedPixels = resolveAllPixels(TENANT.tracking, vertical, locale);
+
+// Worker URL + write key. Build-time env (PUBLIC_EVENTS_API_URL / PUBLIC_EVENTS_WRITE_KEY)
+// takes precedence over tenant.yaml so dev can point at localhost:8787 without
+// committing dev URLs into the per-tenant config.
+const eventsApiUrl =
+  (import.meta.env.PUBLIC_EVENTS_API_URL as string | undefined) ||
+  TENANT.tracking.eventsApiUrl ||
+  '';
+const writeKey =
+  (import.meta.env.PUBLIC_EVENTS_WRITE_KEY as string | undefined) ||
+  TENANT.tracking.writeKey ||
+  '';
+
+const bootConfig = {
+  tenant_id: TENANT.id,
+  locale,
+  vertical,
+  // D-5: tag the blog theme on every event's context so cross-tenant RPM /
+  // engagement is attributable to classic vs editorial (the A/B measurement).
+  theme: TENANT.theme,
+  sessionTtlMs: 30 * 60 * 1000,
+  eventsApiUrl: eventsApiUrl.replace(/\/+$/, ''),
+  writeKey,
+  // Resolved pixel matrix for the current page. Boot script copies this into
+  // every event's `context.tracking` so consumer-* know which pixels to fan
+  // out to without re-resolving the matrix at runtime.
+  tracking: {
+    meta: resolvedPixels.meta.map((p) => ({ id: p.id, testEventCode: p.testEventCode })),
+    tiktok: resolvedPixels.tiktok.map((p) => ({ id: p.id })),
+    googleAds: resolvedPixels.googleAds.map((a) => ({
+      conversionId: a.conversionId,
+      conversionLabel: a.conversionLabel,
+    })),
+    ga4: resolvedPixels.ga4.map((p) => ({ measurementId: p.measurementId })),
+    microsoftUet: resolvedPixels.microsoftUet.map((t) => ({ tagId: t.tagId })),
+  },
+};
+
+// Payload L1 — the ~8 KB tracking engine no longer ships inline on every page.
+// What stays inline & SYNCHRONOUS in <head> (tiny, per-page):
+//   1. `window.__etusCfg` — the per-page config the engine reads.
+//   2. BOOT_STUB — installs window.dataLayer + the queuing window.etus stub so
+//      every early consumer sees the same presence/ordering it always did.
+// The engine itself is imported as a bundled module below; Astro emits it as a
+// hashed, immutable `/_astro/*.js` <script type="module"> (cached across pages
+// & navigations) — the same treatment ClientRouter / WebVitals get. It runs
+// deferred (after parse), reads __etusCfg, and drains the stub queue.
+const inlineCfgAndStub = `window.__etusCfg=${JSON.stringify(bootConfig)};${BOOT_STUB}`;
+---
+
+<script is:inline nonce={Astro.locals.nonce} set:html={inlineCfgAndStub}></script>
+<script>
+  import '../lib/analytics-boot-engine.ts';
+</script>

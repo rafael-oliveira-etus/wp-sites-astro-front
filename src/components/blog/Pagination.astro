@@ -1,0 +1,61 @@
+---
+import type { Page } from 'astro';
+
+interface Props {
+  page: Page;
+  prevLabel: string;
+  nextLabel: string;
+}
+const { page, prevLabel, nextLabel } = Astro.props;
+---
+
+{page.lastPage > 1 && (
+  <nav class="pagination" aria-label="Pagination">
+    {page.url.prev ? (
+      <a class="page-link" href={page.url.prev} rel="prev">← {prevLabel}</a>
+    ) : (
+      <span class="page-link disabled" aria-disabled="true">← {prevLabel}</span>
+    )}
+    <span class="page-count">{page.currentPage} / {page.lastPage}</span>
+    {page.url.next ? (
+      <a class="page-link" href={page.url.next} rel="next">{nextLabel} →</a>
+    ) : (
+      <span class="page-link disabled" aria-disabled="true">{nextLabel} →</span>
+    )}
+  </nav>
+)}
+
+<style>
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 3rem 0 0;
+    padding: 2rem 0;
+  }
+
+  .page-link {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+    color: var(--color-fg);
+    text-decoration: none;
+    font-size: 0.9375rem;
+  }
+
+  a.page-link:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+  }
+
+  .page-link.disabled {
+    opacity: 0.4;
+  }
+
+  .page-count {
+    color: var(--color-muted);
+    font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
+  }
+</style>

@@ -1,0 +1,219 @@
+---
+// T1.11 — Consent Mode v2 banner. Renders only if user hasn't yet decided
+// (consent state source is NOT 'banner'). Strict regions (EEA/UK/CH/BR/etc)
+// default to all-denied → banner pressed-display until click.
+// Permissive regions default to all-granted → banner shown but funnel works
+// pre-click.
+//
+// Copy: tenant.yaml.display.<locale>.consent.{headline,body,acceptAllLabel,
+// rejectAllLabel,settingsLabel,privacyPolicyHref,privacyPolicyLabel}.
+// Falls back to baked-in English defaults if absent.
+//
+// Spec: docs/compliance/consent-mode-v2.md
+//
+// T11: the ~1.7 KB banner logic moved to src/lib/consent-banner.ts, bundled as
+// a hashed/cached /_astro/*.js module instead of inline-per-page. That module
+// is idempotent (short-circuits on dataset.bound) and runs once on import,
+// covering the initial (non-View-Transition) load. Bundled modules do NOT
+// re-run on ClientRouter VT navigations, so a minimal inline data-astro-rerun
+// shim below re-invokes the exported init (window.__etusConsentInit) after each
+// VT nav — preserving the original re-run-on-navigation behavior. The shim is a
+// no-op until the module has assigned the global.
+import { TENANT, localeDisplay } from '../lib/tenant';
+
+interface Props {
+  locale: string;
+}
+
+const { locale } = Astro.props;
+const display = localeDisplay(TENANT, locale);
+
+// Fallback copy by language family (covers en/pt-BR/es-* without tenant override)
+interface ConsentCopy {
+  headline: string;
+  body: string;
+  acceptAllLabel: string;
+  rejectAllLabel: string;
+  settingsLabel: string;
+  privacyPolicyLabel: string;
+  privacyPolicyHref: string | null;
+}
+const langFallbacks: Record<string, ConsentCopy> = {
+  en: {
+    headline: 'Your privacy',
+    body:
+      'We use cookies and similar technologies to measure performance, personalize content, and run ads. You can accept all or reject all.',
+    acceptAllLabel: 'Accept all',
+    rejectAllLabel: 'Reject all',
+    settingsLabel: 'Manage',
+    privacyPolicyLabel: 'Privacy policy',
+    privacyPolicyHref: null,
+  },
+  pt: {
+    headline: 'Sua privacidade',
+    body:
+      'Usamos cookies e tecnologias similares para medir desempenho, personalizar conteúdo e exibir anúncios. Você pode aceitar tudo ou recusar tudo.',
+    acceptAllLabel: 'Aceitar tudo',
+    rejectAllLabel: 'Recusar tudo',
+    settingsLabel: 'Preferências',
+    privacyPolicyLabel: 'Política de privacidade',
+    privacyPolicyHref: null,
+  },
+  es: {
+    headline: 'Tu privacidad',
+    body:
+      'Usamos cookies y tecnologías similares para medir rendimiento, personalizar contenido y mostrar anuncios. Puedes aceptar todo o rechazar todo.',
+    acceptAllLabel: 'Aceptar todo',
+    rejectAllLabel: 'Rechazar todo',
+    settingsLabel: 'Preferencias',
+    privacyPolicyLabel: 'Política de privacidad',
+    privacyPolicyHref: null,
+  },
+};
+
+const lang = (locale || 'en').split('-')[0];
+const fallback = langFallbacks[lang] ?? langFallbacks.en!;
+const cfg = display.consent ?? fallback;
+const copy = {
+  headline: cfg.headline ?? fallback.headline,
+  body: cfg.body ?? fallback.body,
+  acceptAllLabel: cfg.acceptAllLabel ?? fallback.acceptAllLabel,
+  rejectAllLabel: cfg.rejectAllLabel ?? fallback.rejectAllLabel,
+  settingsLabel: cfg.settingsLabel ?? fallback.settingsLabel,
+  privacyPolicyHref: cfg.privacyPolicyHref ?? null,
+  privacyPolicyLabel: cfg.privacyPolicyLabel ?? fallback.privacyPolicyLabel,
+};
+---
+
+<!-- Lighthouse "Uses ARIA roles only on compatible elements" flagged
+     <aside role="dialog">: <aside> has implicit role="complementary",
+     which conflicts with the explicit dialog role. <div> has no implicit
+     ARIA role, so role="dialog" applies cleanly. -->
+<div
+  class="consent-banner"
+  data-consent-banner
+  role="dialog"
+  aria-modal="false"
+  aria-labelledby="consent-headline"
+  hidden
+>
+  <div class="consent-inner">
+    <div class="consent-text">
+      <h2 id="consent-headline">{copy.headline}</h2>
+      <p>
+        {copy.body}
+        {copy.privacyPolicyHref && (
+          <>
+            {' '}
+            <a href={copy.privacyPolicyHref}>{copy.privacyPolicyLabel}</a>
+          </>
+        )}
+      </p>
+    </div>
+    <div class="consent-actions">
+      <button type="button" class="consent-reject" data-consent-reject>{copy.rejectAllLabel}</button>
+      <button type="button" class="consent-accept" data-consent-accept>{copy.acceptAllLabel}</button>
+    </div>
+  </div>
+</div>
+
+<script is:inline nonce={Astro.locals.nonce} data-astro-rerun set:html={`window.__etusConsentInit&&window.__etusConsentInit()`}></script>
+<script>
+  import '../lib/consent-banner.ts';
+</script>
+
+<style>
+  .consent-banner {
+    position: fixed;
+    left: 0;
+    right: 0;
+    /* T1.14 pattern — respect iPhone home indicator */
+    bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    z-index: 9500; /* above webpush prompt (9000) */
+    background: var(--color-bg);
+    border-top: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+    box-shadow: 0 -8px 24px -10px rgba(0, 0, 0, 0.12);
+    opacity: 0;
+    transform: translateY(12px);
+    transition: opacity 220ms ease, transform 220ms ease;
+  }
+
+  .consent-banner.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  .consent-inner {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 1rem 1.25rem 1.25rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+
+  @media (min-width: 720px) {
+    .consent-inner {
+      grid-template-columns: 1fr auto;
+      align-items: center;
+    }
+  }
+
+  .consent-text h2 {
+    margin: 0 0 0.375rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--color-fg);
+  }
+
+  .consent-text p {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-muted);
+  }
+
+  .consent-text a {
+    color: var(--color-fg);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .consent-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  .consent-actions button {
+    /* T1.16 — min 44pt tap target */
+    min-height: 44px;
+    padding: 0.625rem 1.125rem;
+    border-radius: 0.5rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    cursor: pointer;
+    font: inherit;
+  }
+
+  .consent-reject {
+    background: transparent;
+    color: var(--color-fg);
+    border-color: color-mix(in srgb, var(--color-fg) 18%, transparent);
+  }
+
+  .consent-accept {
+    background: var(--color-primary);
+    color: #fff;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .consent-banner {
+      transition: none;
+      transform: none;
+    }
+  }
+</style>

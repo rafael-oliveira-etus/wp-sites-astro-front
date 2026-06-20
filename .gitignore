@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+.astro/
+
+# secrets / local env
+.dev.vars
+.dev.vars.*
+*.local
+
+# os
+.DS_Store
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# downloaded/optimized blog images (never committed; images are served from source)
+tenants/*/assets/blog-images/

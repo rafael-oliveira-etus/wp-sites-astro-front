@@ -1,0 +1,140 @@
+---
+export const prerender = true;
+import type { GetStaticPathsOptions } from 'astro';
+import BaseLayout from '../../../../layouts/BaseLayout.astro';
+import Header from '../../../../components/Header.astro';
+import Footer from '../../../../components/Footer.astro';
+import Breadcrumbs from '../../../../components/blog/Breadcrumbs.astro';
+import PostCard from '../../../../components/blog/PostCard.astro';
+import Pagination from '../../../../components/blog/Pagination.astro';
+import { TENANT, localeDisplay } from '../../../../lib/tenant';
+import { authorById, verticalsForAuthor } from '../../../../lib/authors';
+import { postsByLocale, postMeta } from '../../../../lib/content';
+import { blogHubPath, absoluteUrl } from '../../../../lib/url';
+import { buildBreadcrumbSchema, buildPersonSchema } from '../../../../lib/seo';
+
+export async function getStaticPaths({ paginate }: GetStaticPathsOptions) {
+  const PAGE_SIZE = 24;
+  const routes = [];
+  for (const locale of TENANT.locales) {
+    for (const id of Object.keys(TENANT.authors || {})) {
+      const verts = verticalsForAuthor(TENANT, id);
+      const posts = (await postsByLocale(locale))
+        .filter((e) => verts.includes(postMeta(e).vertical))
+        .sort((a, b) => b.data.publishedAt.getTime() - a.data.publishedAt.getTime());
+      routes.push(...paginate(posts, { params: { locale, id }, pageSize: PAGE_SIZE }));
+    }
+  }
+  return routes;
+}
+
+const { locale, id } = Astro.params;
+const { page } = Astro.props;
+const display = localeDisplay(TENANT, locale);
+const author = authorById(TENANT, id as string);
+const linkedin = author?.sameAs.find((u) => /linkedin\.com/i.test(u)) || author?.sameAs[0];
+
+const crumbItems = [
+  { label: display.nav.home, href: `/${locale}` },
+  { label: display.nav.blog, href: blogHubPath(locale) },
+  { label: author?.name || (id as string) },
+];
+const breadcrumb = buildBreadcrumbSchema(
+  crumbItems.map((c) => ({ name: c.label, url: absoluteUrl(TENANT, c.href ?? `/${locale}/author/${id}`) })),
+);
+const person = author
+  ? buildPersonSchema({ ...author, url: absoluteUrl(TENANT, `/${locale}/author/${id}`) })
+  : null;
+const pageSuffix = page.lastPage > 1 ? ` — ${page.currentPage}/${page.lastPage}` : '';
+---
+
+<BaseLayout
+  locale={locale}
+  title={`${author?.name || id}${pageSuffix}`}
+  description={author?.bio || String(author?.name || id)}
+  type="profile"
+  schemas={person ? [breadcrumb, person] : [breadcrumb]}
+>
+  <Header locale={locale} />
+  <main id="main">
+    <header class="author-header">
+      <Breadcrumbs items={crumbItems} ariaLabel={display.ui.breadcrumbAria} />
+      <h1>{author?.name || id}</h1>
+      {author?.title && <p class="author-title">{author.title}</p>}
+      {author?.bio && <p class="author-bio">{author.bio}</p>}
+      {linkedin && (
+        <a class="author-link" href={linkedin} rel="noopener nofollow noreferrer" target="_blank">LinkedIn ↗</a>
+      )}
+    </header>
+
+    {page.data.length === 0 ? (
+      <p class="empty">{display.ui.noPostsYet}</p>
+    ) : (
+      <ul class="post-grid">
+        {page.data.map((post) => (
+          <PostCard
+            post={post}
+            locale={locale}
+            verticalLabel={display.verticals[postMeta(post).vertical]}
+            minReadLabel={display.ui.minRead}
+          />
+        ))}
+      </ul>
+    )}
+
+    <Pagination page={page} prevLabel={display.ui.prevPage} nextLabel={display.ui.nextPage} />
+  </main>
+  <Footer locale={locale} />
+</BaseLayout>
+
+<style>
+  main {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: 2rem 1.25rem 0;
+  }
+
+  .author-header {
+    padding: 1rem 0 2rem;
+    max-width: 44rem;
+  }
+
+  .author-header h1 {
+    font-size: clamp(2rem, 5vw, 3rem);
+    margin: 0;
+    letter-spacing: -0.02em;
+  }
+
+  .author-title {
+    margin: 0.4rem 0 0;
+    color: var(--color-muted);
+  }
+
+  .author-bio {
+    margin: 0.75rem 0 0;
+    line-height: 1.6;
+  }
+
+  .author-link {
+    display: inline-block;
+    margin-top: 0.5rem;
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+  }
+
+  .empty {
+    color: var(--color-muted);
+    padding: 4rem 0;
+    text-align: center;
+  }
+
+  .post-grid {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 1.25rem;
+    grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
+  }
+</style>

@@ -1,0 +1,63 @@
+---
+// Root route. Quiz/YAML tenants: prerendered `/` → `/{locale}` redirect.
+// Headless-WordPress tenants: SSR homepage feed of the latest WP posts (flat
+// permalinks, so `/` is the real homepage rather than a locale redirect).
+import { TENANT, localeDisplay } from '../lib/tenant';
+import { absoluteUrl, localePath } from '../lib/url';
+import { wpDepsFromRuntime } from '../lib/wp-runtime';
+import { getPostsPage } from '../lib/wp';
+import WpListView from '../components/blog/WpListView.astro';
+import type { WpPost } from '../lib/wp-types';
+
+// Per-build constant (one tenant per build): headless tenants render SSR, others
+// stay a prerendered redirect. Must reference the hoisted TENANT import directly —
+// `export const prerender` is hoisted above frontmatter consts (TDZ otherwise).
+export const prerender = !TENANT.blog?.wpBaseUrl;
+
+const wpBaseUrl = TENANT.blog?.wpBaseUrl;
+
+const target = localePath(TENANT.defaultLocale);
+const redirectCanonical = absoluteUrl(TENANT, target);
+
+let postsPage = { posts: [] as WpPost[], page: 1, totalPages: 0, total: 0 };
+let display: ReturnType<typeof localeDisplay> | null = null;
+if (wpBaseUrl) {
+  const deps = await wpDepsFromRuntime(wpBaseUrl);
+  postsPage = await getPostsPage(deps, { page: 1, perPage: 12 });
+  display = localeDisplay(TENANT, TENANT.defaultLocale);
+}
+---
+
+{wpBaseUrl && display ? (
+  <WpListView
+    locale={TENANT.defaultLocale}
+    heading={display.siteName}
+    showHeading={false}
+    description={display.description}
+    canonicalUrl={absoluteUrl(TENANT, '/')}
+    posts={postsPage.posts}
+    emptyLabel={display.ui.noPostsYet}
+    page={postsPage.page}
+    totalPages={postsPage.totalPages}
+    basePath=""
+    prevPageLabel={display.ui.prevPage}
+    nextPageLabel={display.ui.nextPage}
+    pageLabel={display.ui.pageLabel}
+    paginationAria={display.ui.paginationAria}
+  />
+) : (
+  <html lang={TENANT.defaultLocale}>
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <script is:inline define:vars={{ target }}>
+        window.location.replace(target);
+      </script>
+      <meta http-equiv="refresh" content={`0; url=${target}`} />
+      <link rel="canonical" href={redirectCanonical} />
+      <meta name="robots" content="noindex, nofollow" />
+      <title>{target}</title>
+    </head>
+    <body></body>
+  </html>
+)}

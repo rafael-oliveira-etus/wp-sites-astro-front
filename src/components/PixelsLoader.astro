@@ -1,0 +1,155 @@
+---
+// T2.6 (híbrido) — Client-side pixel loader for Meta / TikTok / Google Ads /
+// GA4 / Microsoft UET. Runs in parallel with the server-side CAPI consumers,
+// uses the same `event_id` (== messageId) for Pixel↔CAPI dedup.
+//
+// Loads each channel's pixel snippet AFTER consent and only when at least
+// one pixel of that channel is resolved for the current page. Marketing
+// consent gates Meta/TikTok/Google Ads/Microsoft UET; analytics consent
+// gates GA4 (per its measurement-not-ads role).
+//
+// Multi-pixel: every channel iterates its resolved list and fires the
+// platform's "configure additional pixel" snippet (fbq('init', X); +
+// fbq('track', ..., {}, {eventID: ...})).
+
+import { TENANT } from '../lib/tenant';
+import { resolveAllPixels, type ResolvedPixels } from '../lib/tracking-resolver';
+import type { Vertical } from '../lib/schemas';
+
+interface Props {
+  locale: string;
+  vertical?: Vertical | null;
+}
+
+const { locale, vertical = null } = Astro.props;
+const resolved: ResolvedPixels = resolveAllPixels(TENANT.tracking, vertical, locale);
+const cfg = {
+  meta: resolved.meta.map((p) => ({ id: p.id })),
+  tiktok: resolved.tiktok.map((p) => ({ id: p.id })),
+  googleAds: resolved.googleAds.map((a) => ({
+    conversionId: a.conversionId,
+    conversionLabel: a.conversionLabel,
+  })),
+  ga4: resolved.ga4.map((p) => ({ measurementId: p.measurementId })),
+  microsoftUet: resolved.microsoftUet.map((t) => ({ tagId: t.tagId })),
+};
+const inline = `window.__etusPixels=${JSON.stringify(cfg)};`;
+---
+
+{cfg.meta.length + cfg.tiktok.length + cfg.googleAds.length + cfg.ga4.length + cfg.microsoftUet.length > 0 && (
+  <>
+    <script is:inline nonce={Astro.locals.nonce} set:html={inline} />
+    <script is:inline nonce={Astro.locals.nonce}>
+      {`
+      (function(){
+        var P = window.__etusPixels || {};
+        var loaded = { meta:false, tiktok:false, ga4:false, gads:false, msuet:false };
+
+        // ─── Meta Pixel ────────────────────────────────────────────────────
+        function loadMeta(){
+          if (loaded.meta || !(P.meta && P.meta.length)) return;
+          loaded.meta = true;
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+          if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+          t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          for (var i=0;i<P.meta.length;i++) window.fbq('init', P.meta[i].id);
+          window.fbq('track', 'PageView');
+        }
+
+        // ─── TikTok Pixel ──────────────────────────────────────────────────
+        function loadTikTok(){
+          if (loaded.tiktok || !(P.tiktok && P.tiktok.length)) return;
+          loaded.tiktok = true;
+          !function (w, d, t) { w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie","holdConsent","revokeConsent","grantConsent"];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var r="https://analytics.tiktok.com/i18n/pixel/events.js",o=n&&n.partner;ttq._i=ttq._i||{};ttq._i[e]=[];ttq._i[e]._u=r;ttq._t=ttq._t||{};ttq._t[e]=+new Date;ttq._o=ttq._o||{};ttq._o[e]=n||{};var i=document.createElement("script");i.type="text/javascript";i.async=!0;i.src=r+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(i,a)};
+            for (var j=0;j<P.tiktok.length;j++) { window.ttq.load(P.tiktok[j].id); window.ttq.instance(P.tiktok[j].id).page(); }
+          }(window, document, 'ttq');
+        }
+
+        // ─── GA4 + Google Ads (gtag.js, shared loader) ─────────────────────
+        function loadGtag(){
+          var needGA4 = P.ga4 && P.ga4.length && !loaded.ga4;
+          var needGAds = P.googleAds && P.googleAds.length && !loaded.gads;
+          if (!needGA4 && !needGAds) return;
+          if (!window.gtag) {
+            window.dataLayer = window.dataLayer || [];
+            window.gtag = function(){ window.dataLayer.push(arguments); };
+            window.gtag('js', new Date());
+            // Use the first available measurement/conversion id for the script URL.
+            var firstId = (needGA4 ? P.ga4[0].measurementId : null) || (needGAds ? P.googleAds[0].conversionId : null);
+            if (firstId) {
+              var s = document.createElement('script');
+              s.async = true;
+              s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(firstId);
+              document.head.appendChild(s);
+            }
+          }
+          if (needGA4) {
+            for (var k=0;k<P.ga4.length;k++) window.gtag('config', P.ga4[k].measurementId, { send_page_view: true });
+            loaded.ga4 = true;
+          }
+          if (needGAds) {
+            for (var m=0;m<P.googleAds.length;m++) window.gtag('config', P.googleAds[m].conversionId);
+            loaded.gads = true;
+          }
+        }
+
+        // ─── Microsoft UET ─────────────────────────────────────────────────
+        function loadMSUET(){
+          if (loaded.msuet || !(P.microsoftUet && P.microsoftUet.length)) return;
+          loaded.msuet = true;
+          (function(w,d,t,r,u){var f,n,i;w[u]=w[u]||[],f=function(){var o={ti:P.microsoftUet[0].tagId,enableAutoSpaTracking:true};o.q=w[u],w[u]=new UET(o),w[u].push("pageLoad")},n=d.createElement(t),n.src=r,n.async=1,n.onload=n.onreadystatechange=function(){var s=this.readyState;s&&s!=="loaded"&&s!=="complete"||(f(),n.onload=n.onreadystatechange=null)},i=d.getElementsByTagName(t)[0],i.parentNode.insertBefore(n,i)})(window,document,"script","//bat.bing.com/bat.js","uetq");
+          // Additional tags share the same loader; push tagId for each via uetq events.
+          for (var n2=1;n2<P.microsoftUet.length;n2++) { /* additional tag init is not supported by the script — Microsoft recommends 1 UET tag per site; multi-tag is rare. */ }
+        }
+
+        // ─── Wire to consent + track events ───────────────────────────────
+        function applyConsent(c){
+          if (!c) return;
+          if (c.marketing) { loadMeta(); loadTikTok(); loadGtag(); loadMSUET(); }
+          if (c.analytics) { loadGtag(); /* GA4 also loads on marketing */ }
+        }
+        // Initial pass — boot may have already finalized consent.
+        try { applyConsent(window.etus && window.etus.consent && window.etus.consent.get()); } catch(_) {}
+        window.addEventListener('etus:consent', function(ev){ applyConsent(ev.detail); });
+
+        // ─── Mirror server-side events client-side with matching event_id ─
+        // Maps internal event names to per-channel canonical names. Pixel↔CAPI
+        // dedup hinges on event_id matching — we forward window.etus track
+        // payloads to each loaded pixel with the same messageId.
+        var META_MAP = { quiz_started:'ViewContent', quiz_form_submitted:'Lead', quiz_completed:'CompleteRegistration', exit_link_clicked:'InitiateCheckout' };
+        var TIKTOK_MAP = { quiz_started:'ViewContent', quiz_form_submitted:'CompleteRegistration', quiz_completed:'CompleteRegistration' };
+        window.addEventListener('etus:track', function(ev){
+          var d = ev.detail; if (!d) return;
+          var eid = d.event_id;
+          // Meta
+          if (loaded.meta && window.fbq && META_MAP[d.event]) {
+            window.fbq('track', META_MAP[d.event], d.properties || {}, { eventID: eid });
+          }
+          // TikTok — fire per-instance (each pixel)
+          if (loaded.tiktok && window.ttq && TIKTOK_MAP[d.event]) {
+            for (var i=0;i<P.tiktok.length;i++) {
+              try { window.ttq.instance(P.tiktok[i].id).track(TIKTOK_MAP[d.event], d.properties || {}, { event_id: eid }); } catch(_) {}
+            }
+          }
+          // GA4 — send custom events directly through gtag
+          if (loaded.ga4 && window.gtag && d.event === 'quiz_form_submitted') {
+            for (var j=0;j<P.ga4.length;j++) {
+              window.gtag('event', 'generate_lead', Object.assign({ send_to: P.ga4[j].measurementId, transaction_id: eid }, d.properties || {}));
+            }
+          }
+          // Google Ads — conversion event for lead/complete
+          if (loaded.gads && window.gtag && (d.event === 'quiz_form_submitted' || d.event === 'quiz_completed')) {
+            for (var k=0;k<P.googleAds.length;k++) {
+              window.gtag('event', 'conversion', { send_to: P.googleAds[k].conversionId + '/' + P.googleAds[k].conversionLabel, transaction_id: eid });
+            }
+          }
+          // Microsoft UET
+          if (loaded.msuet && window.uetq && (d.event === 'quiz_form_submitted' || d.event === 'quiz_completed')) {
+            window.uetq.push('event', d.event === 'quiz_form_submitted' ? 'Lead' : 'Registration', { transaction_id: eid });
+          }
+        });
+      })();
+      `}
+    </script>
+  </>
+)}

@@ -1,0 +1,107 @@
+---
+// Headless-WordPress listing page (home feed, category or tag archive). Renders a
+// heading, a grid of post cards (flat WP permalinks) and numbered pagination.
+import BlogLayout from '../../layouts/BlogLayout.astro';
+import Header from '../Header.astro';
+import Footer from '../Footer.astro';
+import { wpSrcset } from '../../lib/wp-html';
+import { paginationItems } from '../../lib/pagination';
+import type { WpPost } from '../../lib/wp-types';
+
+interface Props {
+  locale: string;
+  heading: string;
+  /** When false, the heading stays in the document (for the <title>/a11y outline)
+   *  but is visually hidden — used on the home feed, whose heading is the site name
+   *  and is already shown by the header logo. Term archives (category/tag/author)
+   *  pass true so their name shows. */
+  showHeading?: boolean;
+  description: string;
+  canonicalUrl: string;
+  posts: WpPost[];
+  emptyLabel: string;
+  page: number;
+  totalPages: number;
+  basePath: string; // '' for home, '/{categoria}', '/tag/{slug}'
+  prevPageLabel: string;
+  nextPageLabel: string;
+  pageLabel: string;
+  paginationAria: string;
+}
+const {
+  locale, heading, showHeading = true, description, canonicalUrl, posts, emptyLabel,
+  page, totalPages, basePath, prevPageLabel, nextPageLabel, pageLabel, paginationAria,
+} = Astro.props as Props;
+
+const fmtDate = (d: Date) => d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: 'numeric' });
+// Headless-only view → WP's canonical trailing-slash permalinks (matches the
+// 'always' trailingSlash config; avoids a self-inflicted 301 on our own links).
+const pageHref = (n: number) => (n <= 1 ? (basePath ? `${basePath}/` : '/') : `${basePath}/page/${n}/`);
+const items = paginationItems(page, totalPages);
+const cardSizes = '(min-width: 48rem) 17rem, 100vw';
+
+// Emitted via set:html so this CSS ships ONLY on list/feed pages. The catch-all
+// route imports both WpListView and WpPostView, so an Astro `<style>` here would
+// bundle into every post page too (where these classes never render). Minified
+// by hand since set:html bypasses Astro's CSS pipeline.
+const LIST_CSS = `.lw{max-width:72rem;margin:0 auto;padding:2rem 1rem 4rem}.lh{font-size:clamp(1.6rem,4vw,2.4rem);margin:0 0 1.5rem}.lh-sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.le{color:var(--color-muted-text,#555851)}.cg{list-style:none;margin:0;padding:0;display:grid;gap:1.5rem;grid-template-columns:repeat(auto-fill,minmax(17rem,1fr))}.c{background:#fff;border:1px solid #e7ebf0;border-radius:12px;overflow:hidden;transition:box-shadow .15s ease,transform .15s ease}.c:hover{box-shadow:0 8px 24px rgba(15,23,42,.08);transform:translateY(-2px)}.cl{display:flex;flex-direction:column;height:100%;text-decoration:none;color:inherit}.ci{width:100%;height:11rem;object-fit:cover;display:block;background:#f1f4f7}.ci-ph{background:var(--color-surface-2,#eef1f4)}.cb{padding:1rem 1.1rem 1.25rem;display:flex;flex-direction:column;gap:.4rem}.ck{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--color-primary,#0c7a3f)}.ct{font-size:1.1rem;line-height:1.3;margin:0}.cx{font-size:.92rem;color:var(--color-muted-text,#555851);margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.cd{font-size:.8rem;color:var(--color-muted-text,#555851);margin-top:auto;padding-top:.4rem}.pg{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:.4rem;margin:3rem 0 0}.pg-i,.pg-prev,.pg-next{display:inline-flex;align-items:center;justify-content:center;min-width:2.25rem;height:2.25rem;padding:0 .6rem;border:1px solid #e7ebf0;border-radius:8px;text-decoration:none;color:inherit;font-size:.9rem;font-variant-numeric:tabular-nums}.pg-i:hover,.pg-prev:hover,.pg-next:hover{border-color:var(--color-primary,#0c7a3f)}.pg-cur{background:var(--color-primary,#0c7a3f);color:#fff;border-color:var(--color-primary,#0c7a3f)}.pg-gap{padding:0 .4rem;color:var(--color-muted-text,#555851)}`;
+---
+
+<BlogLayout locale={locale} title={heading} description={description} canonical={canonicalUrl}>
+  <Header locale={locale} />
+  <main id="main" class="lw">
+    <h1 class={showHeading ? 'lh' : 'lh-sr'}>{heading}</h1>
+    {posts.length === 0 ? (
+      <p class="le">{emptyLabel}</p>
+    ) : (
+      <ul class="cg">
+        {posts.map((p) => (
+          <li class="c">
+            <a class="cl" href={`/${p.slug}/`}>
+              {p.featuredMedia?.sourceUrl ? (
+                <img
+                  class="ci"
+                  src={p.featuredMedia.sourceUrl}
+                  srcset={wpSrcset(p.featuredMedia)}
+                  sizes={cardSizes}
+                  alt={p.featuredMedia.alt || p.title}
+                  width={p.featuredMedia.width ?? 768}
+                  height={p.featuredMedia.height ?? 512}
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <div class="ci ci-ph" aria-hidden="true"></div>
+              )}
+              <div class="cb">
+                {p.terms.find((t) => t.taxonomy === 'category') && (
+                  <span class="ck">{p.terms.find((t) => t.taxonomy === 'category')!.name}</span>
+                )}
+                <h2 class="ct">{p.title}</h2>
+                <p class="cx">{p.excerpt}</p>
+                <time class="cd" datetime={p.publishedAt.toISOString()}>{fmtDate(p.publishedAt)}</time>
+              </div>
+            </a>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    {totalPages > 1 && (
+      <nav class="pg" aria-label={paginationAria}>
+        {page > 1 && <a class="pg-prev" href={pageHref(page - 1)} rel="prev" aria-label={prevPageLabel}>←</a>}
+        {items.map((it) => (
+          it === 'gap'
+            ? <span class="pg-gap" aria-hidden="true">…</span>
+            : it === page
+              ? <span class="pg-i pg-cur" aria-current="page">{it}</span>
+              : <a class="pg-i" href={pageHref(it)} aria-label={`${pageLabel} ${it}`}>{it}</a>
+        ))}
+        {page < totalPages && <a class="pg-next" href={pageHref(page + 1)} rel="next" aria-label={nextPageLabel}>→</a>}
+      </nav>
+    )}
+  </main>
+  <Footer locale={locale} />
+</BlogLayout>
+
+<style is:inline set:html={LIST_CSS}></style>

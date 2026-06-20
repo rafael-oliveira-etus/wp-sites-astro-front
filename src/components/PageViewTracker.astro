@@ -1,0 +1,16 @@
+---
+// Fires page_view on every ClientRouter view-transition arrival.
+// On the initial load, AnalyticsBoot already fires page_view — this one is a no-op
+// for the first paint and only kicks in for subsequent navigations.
+---
+
+<script is:inline nonce={Astro.locals.nonce} data-astro-rerun>
+  (function () {
+    if (!window.etus || !window.etus.track) return;
+    if (window.__etusInitialPageViewSkipped !== true) {
+      window.__etusInitialPageViewSkipped = true;
+      return;
+    }
+    window.etus.track('page_view', {});
+  })();
+</script>

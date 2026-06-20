@@ -1,0 +1,196 @@
+---
+// Skeleton soft-prompt for web push opt-in.
+// Renders only if tenant.webpush.enabled === true AND tenant has webpush copy for this locale.
+// Fires quiz_webpush_shown when the prompt becomes visible.
+// Fires quiz_webpush_answered { answer: 'accepted' | 'declined', permission_state? } on user choice.
+// On accept, optionally calls Notification.requestPermission() if tenant.webpush.requestPermissionOnAccept.
+
+import { TENANT, localeDisplay } from '../lib/tenant';
+
+interface Props {
+  locale: string;
+  /** Surface context for the analytics event (e.g. 'post', 'quiz_completed'). */
+  surface: string;
+}
+
+const { locale, surface } = Astro.props;
+const display = localeDisplay(TENANT, locale);
+
+if (!TENANT.webpush.enabled || !display.webpush) {
+  // Render nothing — keeps the component safe to mount unconditionally.
+}
+
+const wp = display.webpush;
+const cfg = {
+  delayMs: Math.max(0, TENANT.webpush.delaySeconds * 1000),
+  requestPermission: TENANT.webpush.requestPermissionOnAccept,
+  surface,
+};
+---
+
+{TENANT.webpush.enabled && wp && (
+  <div
+    class="webpush-prompt"
+    data-webpush-prompt
+    data-webpush-config={JSON.stringify(cfg)}
+    role="dialog"
+    aria-modal="false"
+    aria-labelledby="webpush-headline"
+    hidden
+  >
+    <div class="webpush-body">
+      <p id="webpush-headline" class="webpush-headline">{wp.headline}</p>
+      <p class="webpush-text">{wp.body}</p>
+    </div>
+    <div class="webpush-actions">
+      <button type="button" class="webpush-decline" data-webpush-action="declined">{wp.declineLabel}</button>
+      <button type="button" class="webpush-accept" data-webpush-action="accepted">{wp.acceptLabel}</button>
+    </div>
+  </div>
+
+  <script is:inline nonce={Astro.locals.nonce} data-astro-rerun>
+    (function () {
+      var root = document.querySelector('[data-webpush-prompt]');
+      if (!root) return;
+      if (root.dataset.shown === '1') return; // already rendered this nav
+      var cfg;
+      try { cfg = JSON.parse(root.dataset.webpushConfig || '{}'); } catch (_) { cfg = {}; }
+      // Suppress if user already answered this session
+      try {
+        if (sessionStorage.getItem('webpush:answered') === '1') return;
+      } catch (_) {}
+      var shown = false;
+      function show() {
+        if (shown) return;
+        shown = true;
+        root.dataset.shown = '1';
+        root.hidden = false;
+        window.requestAnimationFrame(function () { root.classList.add('is-visible'); });
+        var permState = (typeof Notification !== 'undefined' && Notification.permission) || 'unsupported';
+        if (window.etus && window.etus.track) {
+          window.etus.track('quiz_webpush_shown', {
+            surface: cfg.surface || null,
+            permission_state: permState,
+          });
+        }
+      }
+      function answer(action) {
+        if (root.dataset.answered === '1') return;
+        root.dataset.answered = '1';
+        try { sessionStorage.setItem('webpush:answered', '1'); } catch (_) {}
+        var permBefore = (typeof Notification !== 'undefined' && Notification.permission) || 'unsupported';
+        var basePayload = {
+          surface: cfg.surface || null,
+          answer: action,
+          permission_state_before: permBefore,
+        };
+        if (action === 'accepted' && cfg.requestPermission && typeof Notification !== 'undefined' && Notification.requestPermission) {
+          Promise.resolve(Notification.requestPermission()).then(function (perm) {
+            if (window.etus && window.etus.track) {
+              window.etus.track('quiz_webpush_answered', Object.assign({}, basePayload, {
+                permission_state_after: perm,
+              }));
+            }
+          }).catch(function () {
+            if (window.etus && window.etus.track) {
+              window.etus.track('quiz_webpush_answered', Object.assign({}, basePayload, {
+                permission_state_after: permBefore,
+                error: 'requestPermission_failed',
+              }));
+            }
+          });
+        } else if (window.etus && window.etus.track) {
+          window.etus.track('quiz_webpush_answered', Object.assign({}, basePayload, {
+            permission_state_after: permBefore,
+          }));
+        }
+        root.classList.remove('is-visible');
+        window.setTimeout(function () { root.hidden = true; }, 260);
+      }
+      root.querySelectorAll('[data-webpush-action]').forEach(function (btn) {
+        btn.addEventListener('click', function () { answer(btn.dataset.webpushAction); });
+      });
+      if (cfg.delayMs > 0) window.setTimeout(show, cfg.delayMs);
+      else show();
+    })();
+  </script>
+
+  <style>
+    .webpush-prompt {
+      position: fixed;
+      left: 1rem;
+      right: 1rem;
+      /* T1.14 — respeitar iPhone home indicator (safe-area-inset-bottom) */
+      bottom: max(1rem, env(safe-area-inset-bottom, 1rem));
+      max-width: 22rem;
+      margin: 0 auto;
+      padding: 1rem 1.125rem;
+      background: var(--color-bg);
+      color: var(--color-fg);
+      border: 1px solid color-mix(in srgb, var(--color-fg) 12%, transparent);
+      border-radius: 0.75rem;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.18);
+      z-index: 9000;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+
+    .webpush-prompt.is-visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    /* T1.14 — honor prefers-reduced-motion */
+    @media (prefers-reduced-motion: reduce) {
+      .webpush-prompt {
+        transition: none;
+        transform: none;
+      }
+    }
+
+    .webpush-headline {
+      margin: 0 0 0.375rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+
+    .webpush-text {
+      margin: 0 0 0.875rem;
+      font-size: 0.875rem;
+      color: var(--color-muted);
+    }
+
+    .webpush-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+    }
+
+    .webpush-actions button {
+      /* T1.16 — min 44pt tap target (Apple HIG / Material 48dp) */
+      min-height: 44px;
+      padding: 0.625rem 1rem;
+      border-radius: 0.5rem;
+      font-size: 0.9375rem;
+      font-weight: 500;
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+
+    .webpush-decline {
+      background: transparent;
+      /* T2.22 — keep color-fg (full opacity) so decline reads as a deliberate
+         action, not a disabled one. Bump border to 22% so the boundary
+         clears WCAG SC 1.4.11 (3:1 against the page background) under both
+         light and dark themes. */
+      color: var(--color-fg);
+      border-color: color-mix(in srgb, var(--color-fg) 22%, transparent);
+    }
+
+    .webpush-accept {
+      background: var(--color-primary);
+      color: #fff;
+    }
+  </style>
+)}
