@@ -5,6 +5,21 @@ import { getBoltConfig } from './wp-config';
 import type { BoltConfig } from './wp-config';
 import { getFooterWidgets, type FooterWidgets } from './wp-footer';
 
+/**
+ * Wrap a fetch so every server-side WP REST subrequest carries
+ * `X-Etus-Maestro: bypass`. When this worker runs behind maestro, the WP origin
+ * host may itself be a maestro-routed zone; the header makes maestro pass the
+ * request straight to origin (see etus-maestro src/main.ts) instead of
+ * re-entering the pipeline (which would loop / mangle the JSON response).
+ */
+export function withMaestroBypass(base: typeof fetch): typeof fetch {
+  return ((input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers);
+    headers.set('X-Etus-Maestro', 'bypass');
+    return base(input, { ...init, headers });
+  }) as typeof fetch;
+}
+
 /** Per-tenant WP auth secret name: `WP_AUTH_<ID>` (id uppercased, non-alnum→`_`). */
 export function wpAuthEnvKey(tenantId: string): string {
   return 'WP_AUTH_' + tenantId.toUpperCase().replace(/[^A-Z0-9]/g, '_');
@@ -123,8 +138,9 @@ export function wpDeps(opts: {
   return {
     baseUrl: opts.baseUrl,
     // Bind to globalThis: the native fetch throws "Illegal invocation" when called
-    // as a method off another object (deps.fetch(...)).
-    fetch: globalThis.fetch.bind(globalThis),
+    // as a method off another object (deps.fetch(...)). Wrap it so every WP REST
+    // call carries the maestro bypass header (no SSR→maestro loop on routed hosts).
+    fetch: withMaestroBypass(globalThis.fetch.bind(globalThis)),
     store: opts.kv ? kvCacheStore(opts.kv) : memStore,
     now: Date.now(),
     waitUntil: opts.waitUntil,
