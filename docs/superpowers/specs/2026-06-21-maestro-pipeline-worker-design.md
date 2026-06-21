@@ -2,7 +2,10 @@
 
 **Date:** 2026-06-21
 **Status:** Approved for planning
-**Scope:** both repos — this repo (`etus-wp-sites-astro-front`) **and** `/Workspace/etus-maestro`.
+**Scope:** **this repo only** (`etus-wp-sites-astro-front`). The maestro-side wiring is
+**documented here as a handoff** but applied separately by the maestro maintainers —
+exactly as `etus-static-pages` is structured (the worker repo contains only the worker;
+maestro's `services`/`PIPELINE_BINDINGS`/routes are changed in the maestro repo by its owners).
 
 ## Goal
 
@@ -25,7 +28,7 @@ maestro-only: no `routes`, no `workers_dev`.
 | # | Decision | Choice |
 |---|----------|--------|
 | 1 | How HTML is produced in the worker | **SSR** dynamically inside `intercept()` (not pre-bundled). |
-| 2 | Scope | Both repos. This repo → pipeline worker; maestro → wiring. |
+| 2 | Scope | **This repo only** (pipeline worker). Maestro wiring is documented as a handoff, applied separately by maestro maintainers — like static-pages. |
 | 3 | Standalone capability | **Retired.** 100% maestro. |
 | 4 | Worker topology | **One worker**, mirroring `etus-static-pages` structure exactly. |
 | 5 | Caching | **Like static-pages**: `intercept()` returns `Cache-Control: public`, maestro caches the composited (SSR + ads) page with a composite key that includes device; the middleware's internal device edge-cache is **retired**. |
@@ -159,7 +162,11 @@ analytics/events fetches target non-maestro hosts → untouched.)
   (`etus-wp-sites-astro-front` / `-development`) — mirror static-pages.
 - `WP_AUTH_*` remain secrets (`wrangler secret put`).
 
-## Maestro repo — changes (`/Workspace/etus-maestro`)
+## Maestro repo — changes (HANDOFF — applied by maestro maintainers, NOT in this work)
+
+These changes live in `/Workspace/etus-maestro` and are **out of scope for this repo's
+implementation**. They are documented here (and in this repo's README) so whoever owns
+maestro can wire the binding — mirroring how `etus-static-pages` documents its own wiring.
 
 1. **Service binding** under both envs in `wrangler.jsonc`:
    ```jsonc
