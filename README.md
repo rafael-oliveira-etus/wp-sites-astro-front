@@ -106,6 +106,20 @@ transform it. Differences from a vanilla Astro Cloudflare deploy:
 **Deploy order:** deploy this worker **before** deploying maestro with the `WP_SITES`
 binding (maestro won't deploy a binding to a worker that doesn't exist yet).
 
+### Verifying end-to-end (once maestro is wired)
+
+Run both workers with service bindings (this worker `wrangler dev --env development`,
+maestro `pnpm dev`), then through maestro's port:
+
+```bash
+curl -H 'Host: cardfacil.com' http://127.0.0.1:8787/ -D -      # 200, text/html, cache-control: public, SSR feed
+curl -H 'Host: cardfacil.com' http://127.0.0.1:8787/_astro/... # static asset resolves via ASSETS
+```
+
+Confirm: a published static landing page still serves from `STATIC_PAGES` (wins over
+SSR for its exact path); ads are injected by `MONETIZATION`; and the worker's
+`/wp-json` subrequests carry `X-Etus-Maestro: bypass` and don't recurse.
+
 ## Deploy
 
 ```bash
