@@ -1,14 +1,6 @@
 import { defineMiddleware } from 'astro:middleware';
 import { resolveDeviceClass } from '@etus/ads';
-import {
-  CACHE_TTL_SEC,
-  cacheKeyUrl,
-  cacheTags,
-  type EdgeCache,
-  isRequestCacheable,
-  parseCfDeviceType,
-  serveWithCache,
-} from './lib/cache';
+import { withPublicCache } from './lib/page-cache';
 import { resolveAdsMode } from './lib/runtime';
 import { CSP_HEADER, cspForNonce } from './lib/security';
 import { resolveTenantByHost, fallbackTenant } from './lib/sites.config';
@@ -92,35 +84,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
     return r;
   };
 
-  // Device-keyed edge cache (the spike lever). Only runs behind the real CF edge
-  // (CF-Device-Type present) in production, and only when a Worker execution ctx
-  // exposes waitUntil — so dev/preview and non-prod fall straight through to a normal
-  // render. Fail-open: the cache is a pure optimization, never a 500.
-  const cfDevice = parseCfDeviceType(cfDeviceHeader);
-  // Worker execution context for waitUntil. In Astro v6 this is Astro.locals.cfContext
-  // (locals.runtime.ctx was REMOVED and its getter throws). Access defensively and
-  // fail-open to a normal render if it's absent.
-  let waitUntil: ((p: Promise<unknown>) => void) | undefined;
-  try {
-    const cfCtx = (context.locals as unknown as { cfContext?: { waitUntil?: (p: Promise<unknown>) => void } }).cfContext;
-    waitUntil = cfCtx?.waitUntil ? cfCtx.waitUntil.bind(cfCtx) : undefined;
-  } catch {
-    waitUntil = undefined;
-  }
-
-  if (waitUntil && cfDevice && isRequestCacheable({ method: req.method, isProduction, device: cfDevice })) {
-    const host = req.headers.get('host') ?? new URL(req.url).host;
-    return serveWithCache({
-      // `caches.default` is the Cloudflare runtime cache; the ambient lib type omits
-      // `.default`, so assert the shape (it exists at runtime on Workers).
-      cache: (caches as unknown as { default: EdgeCache }).default,
-      key: new Request(cacheKeyUrl(req.url, cfDevice)),
-      ttlSec: CACHE_TTL_SEC,
-      now: Date.now(),
-      tags: cacheTags(host, new URL(req.url).pathname),
-      waitUntil,
-      render: async () => applySecurity(await next()),
-    });
-  }
-  return applySecurity(await next());
+  // No in-worker edge cache here. This worker runs as a maestro pipeline worker;
+  // maestro owns the full-page cache (composited with ads, keyed per device via
+  // the pipeline's getCacheKey). SSR pages opt into it by advertising a public
+  // Cache-Control — see lib/page-cache. Per-request identity is injected
+  // downstream in the maestro pipeline (hydrate), never baked into the cached body.
+  return withPublicCache(applySecurity(await next()));
 });
