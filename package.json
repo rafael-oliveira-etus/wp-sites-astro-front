@@ -10,7 +10,10 @@
     "check": "astro check",
     "astro": "astro",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy": "astro build && rm -f .wrangler/deploy/config.json && wrangler deploy src/index.ts -c wrangler.jsonc --env production",
+    "deploy:dev": "astro build && rm -f .wrangler/deploy/config.json && wrangler deploy src/index.ts -c wrangler.jsonc --env development",
+    "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "@astrojs/cloudflare": "catalog:",

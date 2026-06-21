@@ -6,6 +6,12 @@ request `Host`. Content, branding (favicon/logo/OG) and the sitemap all come fro
 each tenant's WordPress origin — nothing is baked per build and there is no
 service worker.
 
+This Worker is a **[maestro](../etus-maestro) pipeline worker** — `etus-maestro`
+routes the tenant hosts and invokes it via the `WP_SITES` service binding (RPC);
+it has **no routes of its own**. Its `intercept()` runs the Astro SSR worker and
+the rendered page (or static asset / 301) flows through the rest of the maestro
+pipeline (ad insertion, analytics). See [Maestro integration](#maestro-integration).
+
 ## Rendering + tenant model
 
 - `output: 'server'` + `@astrojs/cloudflare` v13 adapter → one Worker. All routes
@@ -16,8 +22,9 @@ service worker.
   host → 404. In `astro dev` the Host is `localhost`, so it falls back to `TENANT_ID`
   or the first site.
 - Config for every site lives in `src/lib/sites.config.ts` (`SITES` map). Add a site
-  = add an entry there + two `routes` lines in `wrangler.jsonc` + a `WP_AUTH_<ID>`
-  secret.
+  = add an entry there + a `WP_AUTH_<ID>` secret, and have maestro route the new host.
+  `getConfig().routes` is derived from `SITES` (one `<host>/*` per tenant domain), so
+  the pipeline auto-activates for any host already in the map.
 
 ## Layout
 
@@ -39,9 +46,11 @@ service worker.
 
 ```bash
 pnpm dev                                  # astro dev on :4321 (TENANT_ID fallback → limitemais)
-pnpm build                                # one generic build → dist/
+pnpm build                                # one generic build → dist/ (server + client)
 pnpm check                                # astro check
 pnpm test                                 # vitest
+pnpm deploy                               # build + deploy the pipeline worker (production)
+pnpm deploy:dev                           # build + deploy the pipeline worker (development)
 node scripts/shoot.mjs http://localhost:8788   # Playwright screenshots (desktop+mobile)
 ```
 
@@ -61,12 +70,51 @@ the REST API (`src/lib/wp.ts`), branding (favicon/logo/OG) via the BOLT config A
 (`src/lib/wp-config.ts`), images linked from the WP/CDN source (never downloaded),
 and the sitemap from the WP origin (`<link rel=sitemap>` → `${wpBaseUrl}/sitemap_index.xml`).
 
+## Maestro integration
+
+This worker plugs into `etus-maestro` as a pipeline worker, the same way
+`etus-static-pages` does — `intercept()` produces the page, downstream pipelines
+transform it. Differences from a vanilla Astro Cloudflare deploy:
+
+- **No `main` in `wrangler.jsonc`.** The adapter reads this config during
+  `astro build` and would bundle `src/index.ts` (which imports the build's own
+  `dist/server/entry.mjs`) → circular. The pipeline entry is supplied **positionally**
+  at deploy: `wrangler deploy src/index.ts -c wrangler.jsonc --env <env>`.
+- **Drop the adapter deploy-redirect.** `astro build` writes
+  `.wrangler/deploy/config.json` pointing wrangler at the adapter's own config; the
+  deploy scripts `rm -f` it first so our config + entry win.
+- **WP-loop bypass.** Server-side WP REST fetches carry `X-Etus-Maestro: bypass`
+  (`withMaestroBypass` in `src/lib/wp-runtime.ts`) so SSR-time `/wp-json` calls hit
+  the WP origin directly instead of re-entering maestro — `blog.wpBaseUrl` can be the
+  public host.
+- **Caching.** SSR pages advertise `Cache-Control: public, max-age=300`
+  (`src/lib/page-cache.ts`); maestro caches the composited (SSR + ads) page, keyed per
+  device via the pipeline's `getCacheKey`. There is no in-worker edge cache.
+
+### Wiring into maestro (`etus-maestro` — applied by maestro maintainers)
+
+1. Service binding under each env in `wrangler.jsonc`:
+   ```jsonc
+   { "binding": "WP_SITES", "service": "etus-wp-sites-astro-front" }              // production
+   { "binding": "WP_SITES", "service": "etus-wp-sites-astro-front-development" }  // development
+   ```
+2. `PIPELINE_BINDINGS` in `src/main.ts`: `["STATIC_PAGES", "WP_SITES", "MONETIZATION"]`
+   — after `STATIC_PAGES` (published static landing pages still win for their exact
+   path), before `MONETIZATION` (ads transform the SSR output).
+3. Maestro `routes` must cover the tenant hosts (e.g. `cardfacil.com/*`, `*limitemais.com/*`).
+
+**Deploy order:** deploy this worker **before** deploying maestro with the `WP_SITES`
+binding (maestro won't deploy a binding to a worker that doesn't exist yet).
+
 ## Deploy
 
-One Worker (`frontend`) with one `routes` pair (apex + www) per site in
-`wrangler.jsonc`, shared `SESSION` + `WP_CACHE` KV, and a `WP_AUTH_<ID>` secret per
-site (`wrangler secret put WP_AUTH_<ID>`). Replace the placeholder KV ids with real
-ones before `wrangler deploy`.
+```bash
+pnpm deploy        # astro build → rm redirect → wrangler deploy src/index.ts -c wrangler.jsonc --env production
+pnpm deploy:dev    # … --env development
+```
 
-> Infra note: each tenant's `blog.wpBaseUrl` must point at the real WordPress origin,
-> not the public domain the Worker serves, or the SSR fetch loops back on itself.
+Per-env service names (`etus-wp-sites-astro-front` / `-development`) live in
+`wrangler.jsonc` `env`. Shared `SESSION` + `WP_CACHE` KV are repeated under each env
+(named envs don't inherit top-level `kv_namespaces`); replace the placeholder KV ids
+with real ones, and set a `WP_AUTH_<ID>` secret per site per env
+(`wrangler secret put WP_AUTH_<ID> --env <env>`) before deploying.
