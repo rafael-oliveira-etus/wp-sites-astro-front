@@ -18,6 +18,7 @@
 export const SERVE_ROUTES: string[] = [
   'limitemais.com/*',
   'www.limitemais.com/*',
+  'astro-dev.limitemais.com/*',
   'astro-dev.cardfacil.com/*',
 ];
 

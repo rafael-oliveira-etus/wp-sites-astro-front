@@ -7,6 +7,7 @@ describe('SERVE_ROUTES', () => {
   it('mirrors the wrangler.jsonc serving routes; cardfacil on the astro-dev subdomain, NOT the apex', () => {
     expect(SERVE_ROUTES).toContain('limitemais.com/*');
     expect(SERVE_ROUTES).toContain('www.limitemais.com/*');
+    expect(SERVE_ROUTES).toContain('astro-dev.limitemais.com/*');
     expect(SERVE_ROUTES).toContain('astro-dev.cardfacil.com/*');
     // The apex is the WP origin — routing it would loop SSR. Must not be served.
     expect(SERVE_ROUTES).not.toContain('cardfacil.com/*');
