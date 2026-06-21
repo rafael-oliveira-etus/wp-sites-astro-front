@@ -7,7 +7,9 @@ describe('SERVE_ROUTES', () => {
   it('mirrors the maestro serving routes; only the specific limitemais landing path, never an apex catch-all', () => {
     // limitemais production: ONLY this one post path is served by the worker; the
     // rest of limitemais.com stays on WordPress (maestro passes it through).
-    expect(SERVE_ROUTES).toContain('limitemais.com/s1-tk-cartao-de-credito-credcesta-visa/*');
+    // Trailing `*` (not `/*`) so it matches the URL with OR without the trailing
+    // slash — Astro serves both forms.
+    expect(SERVE_ROUTES).toContain('limitemais.com/s1-tk-cartao-de-credito-credcesta-visa*');
     expect(SERVE_ROUTES).toContain('astro-dev.limitemais.com/*');
     expect(SERVE_ROUTES).toContain('astro-dev.cardfacil.com/*');
     // An apex catch-all is the WP origin — routing it would loop the WP REST fetch
