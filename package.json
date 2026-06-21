@@ -4,10 +4,10 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "TENANT_ID=${TENANT_ID:-limitemais} PUBLIC_EVENTS_API_URL=${PUBLIC_EVENTS_API_URL:-http://localhost:8787} PUBLIC_EVENTS_WRITE_KEY=${PUBLIC_EVENTS_WRITE_KEY:-dev-key-limitemais} astro dev",
+    "dev": "PUBLIC_EVENTS_API_URL=${PUBLIC_EVENTS_API_URL:-http://localhost:8787} PUBLIC_EVENTS_WRITE_KEY=${PUBLIC_EVENTS_WRITE_KEY:-dev-key} astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "check": "TENANT_ID=${TENANT_ID:-limitemais} astro check",
+    "check": "astro check",
     "astro": "astro",
     "test": "vitest run",
     "test:watch": "vitest"

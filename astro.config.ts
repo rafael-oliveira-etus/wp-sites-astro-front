@@ -25,6 +25,12 @@ const allowedHosts = [
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({ imageService: 'passthrough' }),
+  // Bind the dev server to 0.0.0.0 (all interfaces, incl. IPv4 127.0.0.1) instead of
+  // only IPv6 ::1. The dev hostnames (astro-dev.<tenant>.com) are mapped to 127.0.0.1
+  // in /etc/hosts, and Astro's default `localhost` bind lands on ::1-only on
+  // macOS+Node, so IPv4 connections get refused. Astro's top-level `server.host`
+  // overrides vite.server.host, so it MUST live here, not under `vite`.
+  server: { host: true },
   // Headless-WordPress permalinks: canonical form ends in `/`, but `'ignore'`
   // serves BOTH `/foo` and `/foo/` as 200 so no inbound link 404s.
   trailingSlash: 'ignore',
