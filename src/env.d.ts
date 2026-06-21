@@ -5,6 +5,39 @@
 // we use (middleware.ts + wp-runtime.ts read `env` for bindings).
 declare module 'cloudflare:workers' {
   export const env: Record<string, unknown>;
+  // Minimal surface the vendored maestro SDK (src/maestro-sdk) extends. The
+  // runtime (workerd) provides these; we declare only what the SDK uses.
+  export class WorkerEntrypoint<Env = unknown> {
+    protected env: Env;
+    protected ctx: ExecutionContext;
+    constructor(ctx: ExecutionContext, env: Env);
+  }
+  export class RpcTarget {}
+}
+
+// Minimal Cloudflare Workers runtime globals used by the vendored maestro SDK
+// (src/maestro-sdk) and the pipeline entry (src/index.ts). `wrangler types`
+// would generate the full set, but it is not part of the typecheck; declare
+// only what we use (the app otherwise avoids @cloudflare/workers-types so the
+// DOM globals it would clobber stay intact).
+type CfProperties = Record<string, unknown>;
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+  passThroughOnException(): void;
+}
+interface KVNamespace {
+  get(key: string, options?: unknown): Promise<string | null>;
+  put(key: string, value: string, options?: unknown): Promise<void>;
+  delete(key: string): Promise<void>;
+}
+interface Fetcher {
+  fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
+}
+declare class HTMLRewriter {
+  constructor();
+  on(selector: string, handlers: unknown): HTMLRewriter;
+  onDocument(handlers: unknown): HTMLRewriter;
+  transform(response: Response): Response;
 }
 
 interface EtusTrackPayload {
