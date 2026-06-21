@@ -101,7 +101,27 @@ transform it. Differences from a vanilla Astro Cloudflare deploy:
 2. `PIPELINE_BINDINGS` in `src/main.ts`: `["STATIC_PAGES", "WP_SITES", "MONETIZATION"]`
    — after `STATIC_PAGES` (published static landing pages still win for their exact
    path), before `MONETIZATION` (ads transform the SSR output).
-3. Maestro `routes` must cover the tenant hosts (e.g. `cardfacil.com/*`, `*limitemais.com/*`).
+3. Maestro `routes` must cover the host/paths you expose (see "Which routes to expose").
+
+### Which routes to expose (important)
+
+This worker's `intercept()` **always** returns a response (it never returns `null`) —
+SSR page, its own built asset (`/_astro/*`, favicon, prerendered), or its styled
+`/404`. It does **not** defer unknown paths to the WordPress origin.
+
+- **Specific page routes (current model):** route only the exact page paths you want
+  this worker to render (e.g. `cardfacil.com/algum-post/`), like static-pages does for
+  its landing pages. Maestro only forwards those, so assets/`/wp-*`/sitemap never reach
+  the worker. Per page, check it pulls no same-origin build asset:
+  `curl -s -H 'Host: <host>' .../​<path> | grep -o '/_astro/[^"]*'` — if it prints
+  anything, also route `apex/_astro/*` (the worker's own built JS; safe to route).
+  Pages are otherwise self-contained: CSS is inlined, images come from the WP/CDN host
+  (not the front host), scripts are inline or CDN.
+- **Catch-all (`apex/*`) — NOT yet:** routing the whole apex makes the worker intercept
+  `/wp-content`, `/wp-admin`, `/wp-json`, `sitemap.xml`, etc. and `/404` them instead of
+  letting WordPress serve them. Before doing that, change `intercept()` to return `null`
+  when the app would 404 (so maestro falls through to the WP origin — its origin fetch
+  sets `X-Etus-Maestro: bypass`, no loop), mirroring how static-pages defers.
 
 **Deploy order:** deploy this worker **before** deploying maestro with the `WP_SITES`
 binding (maestro won't deploy a binding to a worker that doesn't exist yet).
