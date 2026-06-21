@@ -16,8 +16,7 @@
  * front and WP are separated; a dedicated subdomain otherwise).
  */
 export const SERVE_ROUTES: string[] = [
-  'limitemais.com/*',
-  'www.limitemais.com/*',
+  'limitemais.com/s1-tk-cartao-de-credito-credcesta-visa/*',
   'astro-dev.limitemais.com/*',
   'astro-dev.cardfacil.com/*',
 ];

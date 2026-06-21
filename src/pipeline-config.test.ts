@@ -4,12 +4,16 @@ import { describe, it, expect } from 'vitest';
 import { SERVE_ROUTES, deviceCacheKey } from './pipeline-config';
 
 describe('SERVE_ROUTES', () => {
-  it('mirrors the wrangler.jsonc serving routes; cardfacil on the astro-dev subdomain, NOT the apex', () => {
-    expect(SERVE_ROUTES).toContain('limitemais.com/*');
-    expect(SERVE_ROUTES).toContain('www.limitemais.com/*');
+  it('mirrors the maestro serving routes; only the specific limitemais landing path, never an apex catch-all', () => {
+    // limitemais production: ONLY this one post path is served by the worker; the
+    // rest of limitemais.com stays on WordPress (maestro passes it through).
+    expect(SERVE_ROUTES).toContain('limitemais.com/s1-tk-cartao-de-credito-credcesta-visa/*');
     expect(SERVE_ROUTES).toContain('astro-dev.limitemais.com/*');
     expect(SERVE_ROUTES).toContain('astro-dev.cardfacil.com/*');
-    // The apex is the WP origin — routing it would loop SSR. Must not be served.
+    // An apex catch-all is the WP origin — routing it would loop the WP REST fetch
+    // back through maestro into SSR. Must never be served.
+    expect(SERVE_ROUTES).not.toContain('limitemais.com/*');
+    expect(SERVE_ROUTES).not.toContain('www.limitemais.com/*');
     expect(SERVE_ROUTES).not.toContain('cardfacil.com/*');
   });
 });
