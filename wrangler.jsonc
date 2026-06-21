@@ -1,60 +1,99 @@
 {
-  // ONE generic Worker serves EVERY site (tenant resolved per-request from the Host
-  // in src/lib/sites.config.ts + middleware.ts). This worker is a maestro PIPELINE
-  // worker — maestro routes the hosts and invokes it via the `WP_SITES` service
-  // binding; it has no routes of its own. Add a site = add an entry to SITES, then
-  // `wrangler secret put WP_AUTH_<ID>` for its WordPress auth (and have maestro route
-  // the new host).
-  //
-  // SESSION KV is required by the Astro Cloudflare adapter; WP_CACHE is the shared
-  // stale-while-revalidate cache for WP REST responses (keys are full WP URLs →
-  // already isolated per tenant). Placeholder KV ids are for local `wrangler dev`
-  // (miniflare makes local namespaces); replace with real ids before deploy.
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "etus-wp-sites-astro-front",
-  // Maestro PIPELINE worker: invoked exclusively via RPC from etus-maestro
-  // (service binding `WP_SITES`), never over HTTP — so it declares NO routes and
-  // NO workers_dev. The pipeline entry (src/index.ts) is supplied positionally at
-  // deploy time (`wrangler deploy src/index.ts`) — NOT via `main` here, because the
-  // Astro adapter reads this config during `astro build` and would otherwise try to
-  // bundle src/index.ts (which imports the build's own output → circular).
-  "compatibility_date": "2026-06-01",
-  "compatibility_flags": ["nodejs_compat"],
-  // Production marker (ENVIRONMENT). Drives ad mode (prod→live ads, non-prod→test,
-  // no billing) and the device-keyed edge cache (only runs in production). Does NOT
-  // affect SEO — the X-Robots-Tag noindex header was removed from middleware.ts, so
-  // every environment is indexable. `wrangler deploy` reads this; local `wrangler
-  // dev` overrides it back to non-prod via .dev.vars (ENVIRONMENT=development).
-  "vars": { "ENVIRONMENT": "production" },
-  // `astro build` splits output: SSR → ./dist/server (imported by src/index.ts),
-  // static client assets → ./dist/client (served via the ASSETS binding inside the
-  // Astro handler). Since `main` is no longer the adapter entry, point ASSETS here.
-  "assets": { "binding": "ASSETS", "directory": "./dist/client", "not_found_handling": "404-page", "html_handling": "drop-trailing-slash" },
-  "kv_namespaces": [
-    { "binding": "SESSION", "id": "0000000000000000000000000000spike" },
-    { "binding": "WP_CACHE", "id": "0000000000000000000000000wpcache" }
-  ],
-  // No `routes` here — maestro owns routing and invokes this worker via the
-  // `WP_SITES` service binding. Per-env service names mirror etus-static-pages.
-  // Named environments do NOT inherit top-level `kv_namespaces`, so repeat them
-  // (assets + compatibility ARE inherited). WP_AUTH_* are per-env secrets.
-  "env": {
-    "development": {
-      "name": "etus-wp-sites-astro-front-development",
-      "vars": { "ENVIRONMENT": "development" },
-      "kv_namespaces": [
-        { "binding": "SESSION", "id": "0000000000000000000000000000spike" },
-        { "binding": "WP_CACHE", "id": "0000000000000000000000000wpcache" }
-      ]
-    },
-    "production": {
-      "name": "etus-wp-sites-astro-front",
-      "vars": { "ENVIRONMENT": "production" },
-      "kv_namespaces": [
-        { "binding": "SESSION", "id": "0000000000000000000000000000spike" },
-        { "binding": "WP_CACHE", "id": "0000000000000000000000000wpcache" }
-      ]
-    }
-  },
-  "observability": { "enabled": true }
+	// ONE generic Worker serves EVERY site (tenant resolved per-request from the Host
+	// in src/lib/sites.config.ts + middleware.ts). This worker is a maestro PIPELINE
+	// worker — maestro routes the hosts and invokes it via the `WP_SITES` service
+	// binding; it has no routes of its own. Add a site = add an entry to SITES, then
+	// `wrangler secret put WP_AUTH_<ID>` for its WordPress auth (and have maestro route
+	// the new host).
+	//
+	// SESSION KV is required by the Astro Cloudflare adapter; WP_CACHE is the shared
+	// stale-while-revalidate cache for WP REST responses (keys are full WP URLs →
+	// already isolated per tenant). Placeholder KV ids are for local `wrangler dev`
+	// (miniflare makes local namespaces); replace with real ids before deploy.
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "etus-wp-sites-astro-front",
+	// Maestro PIPELINE worker: invoked exclusively via RPC from etus-maestro
+	// (service binding `WP_SITES`), never over HTTP — so it declares NO routes and
+	// NO workers_dev. The pipeline entry (src/index.ts) is supplied positionally at
+	// deploy time (`wrangler deploy src/index.ts`) — NOT via `main` here, because the
+	// Astro adapter reads this config during `astro build` and would otherwise try to
+	// bundle src/index.ts (which imports the build's own output → circular).
+	"compatibility_date": "2026-06-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// Production marker (ENVIRONMENT). Drives ad mode (prod→live ads, non-prod→test,
+	// no billing) and the device-keyed edge cache (only runs in production). Does NOT
+	// affect SEO — the X-Robots-Tag noindex header was removed from middleware.ts, so
+	// every environment is indexable. `wrangler deploy` reads this; local `wrangler
+	// dev` overrides it back to non-prod via .dev.vars (ENVIRONMENT=development).
+	"vars": {
+		"ENVIRONMENT": "production"
+	},
+	// `astro build` splits output: SSR → ./dist/server (imported by src/index.ts),
+	// static client assets → ./dist/client (served via the ASSETS binding inside the
+	// Astro handler). Since `main` is no longer the adapter entry, point ASSETS here.
+	"assets": {
+		"binding": "ASSETS",
+		"directory": "./dist/client",
+		"not_found_handling": "404-page",
+		"html_handling": "drop-trailing-slash"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "SESSION",
+			"id": "684060d6d8c948a4838f650fba52296b"
+		},
+		{
+			"binding": "WP_CACHE",
+			"id": "938ce1e9570a453d926d3ffec298630c"
+		}
+	],
+	// No `routes` here — maestro owns routing and invokes this worker via the
+	// `WP_SITES` service binding. Per-env service names mirror etus-static-pages.
+	// Named environments do NOT inherit top-level `kv_namespaces`, so repeat them
+	// (assets + compatibility ARE inherited). WP_AUTH_* are per-env secrets.
+	"env": {
+		"development": {
+			"name": "etus-wp-sites-astro-front-development",
+			// RPC-only pipeline worker: no public *.workers.dev URL (reachable only via
+			// maestro's WP_SITES service binding). Not inherited from top level, so set per env.
+			"workers_dev": false,
+			"vars": {
+				"ENVIRONMENT": "development"
+			},
+			"kv_namespaces": [
+				{
+					"binding": "SESSION",
+					"id": "0000000000000000000000000000spike"
+				},
+				{
+					"binding": "WP_CACHE",
+					"id": "0000000000000000000000000wpcache"
+				}
+			]
+		},
+		"production": {
+			"name": "etus-wp-sites-astro-front",
+			// RPC-only pipeline worker: no public *.workers.dev URL (reachable only via
+			// maestro's WP_SITES service binding). Not inherited from top level, so set per env.
+			"workers_dev": false,
+			"vars": {
+				"ENVIRONMENT": "production"
+			},
+			"kv_namespaces": [
+				{
+					"binding": "SESSION",
+					"id": "684060d6d8c948a4838f650fba52296b"
+				},
+				{
+					"binding": "WP_CACHE",
+					"id": "938ce1e9570a453d926d3ffec298630c"
+				}
+			]
+		}
+	},
+	"observability": {
+		"enabled": true
+	}
 }

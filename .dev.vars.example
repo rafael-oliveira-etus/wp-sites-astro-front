@@ -1,0 +1,25 @@
+# Local secrets for `wrangler dev` (wrangler reads this file automatically).
+# Copy to `.dev.vars` and fill in real values. `.dev.vars` is gitignored — only
+# this `.example` is committed.
+#
+# PRODUCTION does NOT use this file. Set each secret on the deployed Worker with:
+#   pnpm exec wrangler secret put <NAME> -c wrangler.jsonc --env production
+
+# Deploy marker (production | development). Local dev uses development; in production
+# it comes from wrangler.jsonc `vars`. Drives ad mode + edge behavior, not SEO.
+ENVIRONMENT=development
+
+# Per-tenant WordPress auth (HTTP Basic) for the AUTH-GATED WP REST endpoints the
+# front fetches LIVE: nav menus (wp/v2/menu-items, wp/v2/menu-locations), footer
+# widgets (wp/v2/widgets?context=edit), settings, and the BOLT site config. Public
+# post/page content does NOT need auth. One var per tenant — its name must match the
+# tenant's `wpAuthEnv` in src/lib/sites.config.ts.
+#
+# Format:  <wp-username>:<application-password>
+#   - a single ":" between the username and the app password
+#   - keep the app password's spaces exactly as WordPress shows them
+#   - the username is case-sensitive (must match the WP user EXACTLY)
+#
+# How to create the user + app password: see README → "WordPress auth setup".
+WP_AUTH_LIMITEMAIS=astro:xxxx xxxx xxxx xxxx xxxx xxxx
+WP_AUTH_CARDFACIL=astro:xxxx xxxx xxxx xxxx xxxx xxxx

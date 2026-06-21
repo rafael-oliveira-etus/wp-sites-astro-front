@@ -70,6 +70,36 @@ the REST API (`src/lib/wp.ts`), branding (favicon/logo/OG) via the BOLT config A
 (`src/lib/wp-config.ts`), images linked from the WP/CDN source (never downloaded),
 and the sitemap from the WP origin (`<link rel=sitemap>` → `${wpBaseUrl}/sitemap_index.xml`).
 
+## WordPress auth setup (per tenant)
+
+The front fetches some WP REST endpoints **live, authenticated**: nav menus
+(`wp/v2/menu-items`, `wp/v2/menu-locations`), footer widgets (`wp/v2/widgets?context=edit`),
+settings, and the BOLT site config. Post/page **content is public** and needs no auth.
+Each tenant needs a WordPress user whose **Application Password** is stored as
+`WP_AUTH_<TENANT>` — see `.dev.vars.example` and each tenant's `wpAuthEnv` in
+`src/lib/sites.config.ts`. Nothing is hardcoded; it all comes from the API per request.
+
+**1. Create the `astro` admin user** (in that tenant's WordPress)
+- WP Admin → **Users → Add New**.
+- Username: `astro` (case-sensitive — use the SAME case in `WP_AUTH_*`).
+- Email: any valid address; set a strong login password.
+- Role: **Administrator** (the menu/widget/settings reads use `context=edit`, which
+  needs `edit_theme_options` + `manage_options` — i.e. admin caps).
+
+**2. Generate its Application Password**
+- WP Admin → **Users → astro → Edit** → section **Application Passwords**.
+- Name it (e.g. `etus-front`) → **Add New Application Password**.
+- Copy the shown value `xxxx xxxx xxxx xxxx xxxx xxxx` — it's displayed **once**.
+- Requires WordPress **5.6+** and the site over **HTTPS** (App Passwords are disabled on non-SSL).
+
+**3. Wire the credential** — format `astro:<app-password>` (single `:`, keep the spaces):
+- Local: `cp .dev.vars.example .dev.vars`, then set `WP_AUTH_<TENANT>=astro:xxxx xxxx …`.
+- Production (per env): `pnpm exec wrangler secret put WP_AUTH_<TENANT> -c wrangler.jsonc --env production`.
+
+Wrong/missing credential → WP returns **401** on those endpoints → the page still
+renders (public content), but menus/widgets/branding fall back to empty/defaults, and
+since 401s aren't cached it also gets slow. Fix the credential (and mind the username case).
+
 ## Maestro integration
 
 This worker plugs into `etus-maestro` as a pipeline worker, the same way
