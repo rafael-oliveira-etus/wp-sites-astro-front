@@ -1,9 +1,8 @@
 import { Pipeline, PipelineSession } from './maestro-sdk';
 import type { PipelineEntry, PipelineRequest, CacheKey } from './maestro-sdk';
 import astro from '../dist/server/entry.mjs';
-import { SITES } from './lib/sites.config';
 import { version as WORKER_VERSION } from '../package.json';
-import { buildRoutes, deviceCacheKey } from './pipeline-config';
+import { SERVE_ROUTES, deviceCacheKey } from './pipeline-config';
 
 interface Env {
   ENVIRONMENT?: string;
@@ -14,7 +13,7 @@ interface Env {
 
 type Config = Record<string, never>;
 
-const ROUTES = buildRoutes(SITES);
+const ROUTES = SERVE_ROUTES;
 
 class WpSitesSession extends PipelineSession<Config, Env> {
   // Fold device into the composite cache key so mobile/desktop SSR variants
