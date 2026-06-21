@@ -1,5 +1,27 @@
-import { describe, expect, it } from 'vitest';
-import { wpAuthEnvKey, wpAuthEnvKeyFor, waitUntilFrom } from './wp-runtime';
+import { describe, expect, it, vi } from 'vitest';
+import { wpAuthEnvKey, wpAuthEnvKeyFor, waitUntilFrom, withMaestroBypass } from './wp-runtime';
+
+describe('withMaestroBypass', () => {
+  const mockFetch = () =>
+    vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => Promise.resolve(new Response('ok')));
+
+  it('adds X-Etus-Maestro: bypass to every request, preserving existing headers', async () => {
+    const base = mockFetch();
+    const f = withMaestroBypass(base as unknown as typeof fetch);
+    await f('https://cardfacil.com/wp-json/wp/v2/posts', { headers: { accept: 'application/json' } });
+    const headers = new Headers(base.mock.calls[0]![1]?.headers);
+    expect(headers.get('X-Etus-Maestro')).toBe('bypass');
+    expect(headers.get('accept')).toBe('application/json');
+  });
+
+  it('works when no init/headers are passed', async () => {
+    const base = mockFetch();
+    const f = withMaestroBypass(base as unknown as typeof fetch);
+    await f('https://cardfacil.com/wp-json/');
+    const headers = new Headers(base.mock.calls[0]![1]?.headers);
+    expect(headers.get('X-Etus-Maestro')).toBe('bypass');
+  });
+});
 
 describe('wpAuthEnvKey', () => {
   it('builds WP_AUTH_<ID> uppercased', () => {
