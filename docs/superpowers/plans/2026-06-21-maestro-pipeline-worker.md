@@ -420,11 +420,15 @@ git commit -m "feat: public Cache-Control on SSR pages; retire in-worker device 
 
 - [ ] **Step 1: Add deploy scripts**
 
-In `package.json` `scripts`, add (keep existing `dev`/`build`/`check`/`test`):
+In `package.json` `scripts`, add (keep existing `dev`/`build`/`check`/`test`).
+**Discovered in Task 1:** `wrangler.jsonc` has NO `main` (the adapter would bundle
+`src/index.ts` circularly during `astro build`), so the pipeline entry is positional;
+and `astro build` writes `.wrangler/deploy/config.json` redirecting wrangler to the
+adapter's own config, which must be removed so our config + entry are used:
 
 ```json
-    "deploy": "astro build && wrangler deploy --env production",
-    "deploy:dev": "astro build && wrangler deploy --env development",
+    "deploy": "astro build && rm -f .wrangler/deploy/config.json && wrangler deploy src/index.ts -c wrangler.jsonc --env production",
+    "deploy:dev": "astro build && rm -f .wrangler/deploy/config.json && wrangler deploy src/index.ts -c wrangler.jsonc --env development",
     "cf-typegen": "wrangler types"
 ```
 

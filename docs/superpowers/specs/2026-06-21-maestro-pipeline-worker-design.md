@@ -154,13 +154,20 @@ analytics/events fetches target non-maestro hosts → untouched.)
   nonce, device class all **stay** — only the `serveWithCache` branch is removed.
 
 ### `wrangler.jsonc` — changes
-- `main: "src/index.ts"` (was `@astrojs/cloudflare/entrypoints/server`).
+- **No `main`** (revised from the original `main: src/index.ts` after the Task 1 spike):
+  the Astro adapter reads this config during `astro build` and would try to bundle
+  `src/index.ts` — which imports the build's own output → circular. The pipeline entry is
+  instead supplied **positionally at deploy**: `wrangler deploy src/index.ts -c wrangler.jsonc --env <env>`.
 - **Remove** `routes` and `workers_dev`.
-- Keep `assets` (`ASSETS` → `./dist/client`), `SESSION` + `WP_CACHE` KV, `nodejs_compat`,
-  `compatibility_date`, `vars.ENVIRONMENT`, `observability`.
+- `assets` → `./dist/client` (the adapter splits server/client); keep `nodejs_compat`,
+  `compatibility_date`, `observability`.
 - Add `env.development` / `env.production` blocks with the service `name`
-  (`etus-wp-sites-astro-front` / `-development`) — mirror static-pages.
-- `WP_AUTH_*` remain secrets (`wrangler secret put`).
+  (`etus-wp-sites-astro-front` / `-development`). Named envs do **not** inherit top-level
+  `kv_namespaces`, so `SESSION` + `WP_CACHE` are repeated in each env block.
+- **Deploy step must `rm -f .wrangler/deploy/config.json`** first — `astro build` writes
+  that file to redirect `wrangler deploy` to the adapter's own config (`dist/server/wrangler.json`);
+  removing it lets our config + positional entry win.
+- `WP_AUTH_*` remain secrets (`wrangler secret put`, per env).
 
 ## Maestro repo — changes (HANDOFF — applied by maestro maintainers, NOT in this work)
 
