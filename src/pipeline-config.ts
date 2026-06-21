@@ -20,11 +20,6 @@ export const SERVE_ROUTES: string[] = [
   'www.limitemais.com/*',
   'astro-dev.limitemais.com/*',
   'astro-dev.cardfacil.com/*',
-  // easydinheiro: a SINGLE landing-page path on the apex (not host-wide `/*`) —
-  // serve only this WP post (wp/v2/posts slug, id 1833), let everything else on
-  // the apex go to WordPress. Both the bare path and the trailing-slash form.
-  'easydinheiro.com/s1-sg-cartao-de-credito-c6-bank',
-  'easydinheiro.com/s1-sg-cartao-de-credito-c6-bank/*',
 ];
 
 /** Composite cache-key dimension: worker version + device, so mobile/desktop SSR

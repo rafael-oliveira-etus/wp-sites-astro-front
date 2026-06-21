@@ -187,14 +187,6 @@ export const SITES: Record<string, Tenant> = {
     "wpAuthEnv": "WP_AUTH_CARDFACIL",
     "blog": { "wpBaseUrl": "https://cardfacil.com" },
   }),
-  "easydinheiro": parseTenant({
-    "id": "easydinheiro",
-    "domains": ["easydinheiro.com"],
-    "defaultLocale": "pt-br",
-    "locales": ["pt-br"],
-    "wpAuthEnv": "WP_AUTH_EASYDINHEIRO",
-    "blog": { "wpBaseUrl": "https://easydinheiro.com" },
-  }),
 };
 
 // SITES is a module singleton shared across requests in a reused isolate. Deep-freeze
