@@ -25,17 +25,13 @@ const { config } = Astro.props
 // Master ad switch — emit the bootstrap unless mode is 'off'. In 'test' mode the
 // bootstrap is identical; only the per-slot NETWORK swaps to the sample network.
 const adsOn = (Astro.locals.adsMode ?? 'test') !== 'off'
-// Per-request CSP nonce (set in middleware) — every inline script carries it so
-// the bootstrap executes under strict-dynamic CSP; gpt.js (nonced) then
-// propagates trust to the scripts/iframes it injects.
-const nonce = Astro.locals.nonce
 ---
 {adsOn && (
   <Fragment>
     {AD_PRECONNECT_ORIGINS.map((o) => <link rel="preconnect" href={o} crossorigin />)}
-    <script is:inline nonce={nonce} set:html={bootPpidScript()}></script>
-    <script is:inline nonce={nonce} set:html={bootGptScript(config)}></script>
-    <script is:inline async src={GPT_SRC} nonce={nonce} crossorigin="anonymous"></script>
-    <script is:inline nonce={nonce} set:html={bootRuntimeScript()}></script>
+    <script is:inline set:html={bootPpidScript()}></script>
+    <script is:inline set:html={bootGptScript(config)}></script>
+    <script is:inline async src={GPT_SRC} crossorigin="anonymous"></script>
+    <script is:inline set:html={bootRuntimeScript()}></script>
   </Fragment>
 )}

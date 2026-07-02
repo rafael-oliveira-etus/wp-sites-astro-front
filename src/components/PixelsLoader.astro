@@ -38,8 +38,8 @@ const inline = `window.__etusPixels=${JSON.stringify(cfg)};`;
 
 {cfg.meta.length + cfg.tiktok.length + cfg.googleAds.length + cfg.ga4.length + cfg.microsoftUet.length > 0 && (
   <>
-    <script is:inline nonce={Astro.locals.nonce} set:html={inline} />
-    <script is:inline nonce={Astro.locals.nonce}>
+    <script is:inline set:html={inline} />
+    <script is:inline>
       {`
       (function(){
         var P = window.__etusPixels || {};

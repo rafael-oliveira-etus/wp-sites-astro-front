@@ -135,7 +135,7 @@ const POST_CSS = `@media (min-width: 720px) {.top-desk-ad {min-height: 250px;}}@
   {!isPage && <script slot="head" is:inline set:html={PRELOADER_JS} />}
   {!isPage && categorySlugs.map((s) => <meta slot="head" property="article:cat" content={s} />)}
   <Header locale={locale} />
-  <div class="ad-unit top-desk-ad" data-position="top" data-device="desk"></div>
+  <div class="ad-unit top-desk-ad" data-position="top" data-device="desk" data-insertion="append"></div>
   <div class="article-layout">
     <article id="main">
       <header class="post-header">
@@ -152,7 +152,7 @@ const POST_CSS = `@media (min-width: 720px) {.top-desk-ad {min-height: 250px;}}@
           </div>
         )}
       </header>
-      <div class="ad-unit top-mob-ad" data-position="top" data-device="mob"></div>
+      <div class="ad-unit top-mob-ad" data-position="top" data-device="mob" data-insertion="append"></div>
       {!isPage && heroImage && (
         <figure class="post-hero">
           <img

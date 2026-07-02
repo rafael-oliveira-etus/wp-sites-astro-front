@@ -16,8 +16,7 @@
  * Unlike the theme, our glue is INLINED (no request to a served JS file) — only
  * the third-party SDKs (gtag.js / fbevents.js / TikTok events.js) are fetched,
  * exactly as the theme fetches them. Each tracker's SDK loads only when its ID
- * exists (GA gated here; FB/TikTok gated inside the ported body). All inline
- * scripts must carry the per-request CSP nonce (strict-dynamic).
+ * exists (GA gated here; FB/TikTok gated inside the ported body).
  */
 import type { BoltTracking } from './wp-config';
 

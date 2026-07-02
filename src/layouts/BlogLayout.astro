@@ -50,7 +50,6 @@ const cssVars = [
 // Tracking (BOLT-identical). Injected only when the BOLT config API returns at
 // least one media/analytics ID; per-tracker SDKs load only when their ID exists.
 const tk = cfg?.tracking;
-const nonce = Astro.locals.nonce;
 ---
 
 <!doctype html>
@@ -60,11 +59,11 @@ const nonce = Astro.locals.nonce;
     <slot name="head" />
     {hasTracking(tk) && (
       <Fragment>
-        <script is:inline nonce={nonce} set:html={GTAG_INIT_JS}></script>
-        <script is:inline nonce={nonce} set:html={trackingConfigJs(tk)}></script>
-        {tk.gaId && <script async src={gtagSrc(tk.gaId)} nonce={nonce}></script>}
-        {tk.gaId && <script is:inline nonce={nonce} set:html={HIGH_PRIORITY_JS}></script>}
-        <script is:inline nonce={nonce} set:html={INITGTM_TRIGGER_JS}></script>
+        <script is:inline set:html={GTAG_INIT_JS}></script>
+        <script is:inline set:html={trackingConfigJs(tk)}></script>
+        {tk.gaId && <script async src={gtagSrc(tk.gaId)}></script>}
+        {tk.gaId && <script is:inline set:html={HIGH_PRIORITY_JS}></script>}
+        <script is:inline set:html={INITGTM_TRIGGER_JS}></script>
       </Fragment>
     )}
   </head>
@@ -72,7 +71,7 @@ const nonce = Astro.locals.nonce;
     <a class="skip-link" href="#main">{display.ui.skipLink}</a>
     <slot />
     {hasTracking(tk) && (
-      <script is:inline nonce={nonce} set:html={TRACKING_LAZY_JS}></script>
+      <script is:inline set:html={TRACKING_LAZY_JS}></script>
     )}
   </body>
 </html>

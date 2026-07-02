@@ -4,7 +4,7 @@
 // for the first paint and only kicks in for subsequent navigations.
 ---
 
-<script is:inline nonce={Astro.locals.nonce} data-astro-rerun>
+<script is:inline data-astro-rerun>
   (function () {
     if (!window.etus || !window.etus.track) return;
     if (window.__etusInitialPageViewSkipped !== true) {

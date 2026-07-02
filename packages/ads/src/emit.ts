@@ -11,8 +11,7 @@
  * These are TYPED emitters: each takes typed inputs and returns the JS string
  * that an Astro `<script is:inline>` renders. Policy constants are single-
  * sourced from refresh-logic.ts; the emitted strings are covered by token
- * tests. Under a strict CSP the inline scripts carry the per-request nonce
- * (Phase 6).
+ * tests.
  *
  * GPT API is the modern/correct form:
  *   setConfig({ singleRequest, safeFrame:{forceSafeFrame}, lazyLoad, collapseDiv?,
@@ -26,8 +25,7 @@
  * reserved div; enableServices() + a single display pass run ONCE at end of
  * <body> (bootDisplayScript). The first display() requests ALL slots defined
  * before it, so SRA roadblocks / competitive-exclusions are honored.
- * forceSafeFrame is required for cross-domain creative rendering under strict CSP
- * (content-security-policy guide).
+ * forceSafeFrame renders creatives in isolated cross-domain iframes.
  */
 
 import { fullAdUnit, sortedBreakpoints, withDefaults } from './config.ts'
@@ -67,8 +65,8 @@ export function bootGptScript(siteCfg: AdsSiteConfig): string {
   const cfg = withDefaults(siteCfg)
   const page: Record<string, unknown> = {
     singleRequest: cfg.singleRequest,
-    // Force SafeFrame so creatives render in cross-domain iframes — required under
-    // our strict-dynamic CSP (same-domain iframes inherit the page CSP and break).
+    // Force SafeFrame so creatives render in isolated cross-domain iframes
+    // (keeps ad creatives from touching the page DOM).
     safeFrame: { forceSafeFrame: true },
     lazyLoad: {
       fetchMarginPercent: cfg.lazyLoad.fetchMarginPercent,

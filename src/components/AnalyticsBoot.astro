@@ -62,7 +62,7 @@ const bootConfig = {
 const inlineCfgAndStub = `window.__etusCfg=${JSON.stringify(bootConfig)};${BOOT_STUB}`;
 ---
 
-<script is:inline nonce={Astro.locals.nonce} set:html={inlineCfgAndStub}></script>
+<script is:inline set:html={inlineCfgAndStub}></script>
 <script>
   import '../lib/analytics-boot-engine.ts';
 </script>

@@ -13,6 +13,5 @@ const { config, side, adUnit, devices } = Astro.props
 const adsMode = Astro.locals.adsMode ?? 'test'
 const allowed = adsMode !== 'off' && slotAllowed(devices, Astro.locals.deviceClass ?? 'desktop')
 const script = allowed ? bootSideRailScript(effectiveNetworkCode(config, adsMode), adUnit, side) : ''
-const nonce = Astro.locals.nonce // strict-CSP nonce
 ---
-{allowed && <script is:inline nonce={nonce} set:html={script}></script>}
+{allowed && <script is:inline set:html={script}></script>}

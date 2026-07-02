@@ -34,7 +34,6 @@ const net = effectiveNetworkCode(config, adsMode)
 const script = allowed ? bootSlotScript(net, { ...rest, id } as SlotProps & { id: string }) : ''
 const style = reserveHeightStyle(rest.reserve)
 const mediaCss = allowed ? reserveMediaCss(id, rest.reserve) : ''
-const nonce = Astro.locals.nonce // strict-CSP nonce for the inline define+display script
 ---
 {allowed && (
   <div class:list={['etus-ad', className]}>
@@ -43,7 +42,7 @@ const nonce = Astro.locals.nonce // strict-CSP nonce for the inline define+displ
   </div>
 )}
 {allowed && mediaCss && <style is:inline set:html={mediaCss}></style>}
-{allowed && <script is:inline nonce={nonce} set:html={script}></script>}
+{allowed && <script is:inline set:html={script}></script>}
 
 <style>
   .etus-ad { margin: 1.5rem auto; text-align: center; }

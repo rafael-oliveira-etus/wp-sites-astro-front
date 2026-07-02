@@ -144,8 +144,7 @@ interface Window {
 /**
  * Request-scoped values set by `src/middleware.ts` on SSR (blog) routes.
  * Prerendered quiz/hub routes skip the middleware, so these are absent there —
- * components reading them on a prerendered page get `undefined` (e.g. `nonce`
- * simply omits the attribute).
+ * components reading them on a prerendered page get `undefined`.
  */
 declare namespace App {
   interface Locals {
@@ -157,10 +156,6 @@ declare namespace App {
     /** Ad mode: 'live' (prod) | 'test' (sample network /6355419/) | 'off'.
      *  Defaults prod→live, non-prod→test. */
     adsMode: import('@etus/ads').AdsMode;
-    /** Per-request CSP nonce — baked into the Report-Only CSP header AND every
-     *  inline <script> on SSR blog routes so the GPT bootstrap runs under
-     *  strict-dynamic CSP. */
-    nonce: string;
     /** ISO country from request.cf (geo); null in dev / when unavailable. */
     country: string | null;
     /** Deploy environment from the ENVIRONMENT var ('production' | 'development' | …). */

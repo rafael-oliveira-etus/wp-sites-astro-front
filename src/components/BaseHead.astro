@@ -224,7 +224,6 @@ const turnstileEnabled =
   <script
     type="application/ld+json"
     is:inline
-    nonce={Astro.locals.nonce}
     set:html={JSON.stringify({
       '@context': 'https://schema.org',
       '@graph': allSchemas.map((s) => {
@@ -242,7 +241,6 @@ const turnstileEnabled =
       src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
       async
       defer
-      nonce={Astro.locals.nonce}
       transition:persist="turnstile-loader"
     />
   )
