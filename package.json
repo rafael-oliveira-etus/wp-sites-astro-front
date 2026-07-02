@@ -1,7 +1,7 @@
 {
   "name": "frontend",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "private": true,
   "scripts": {
     "dev": "PUBLIC_EVENTS_API_URL=${PUBLIC_EVENTS_API_URL:-http://localhost:8787} PUBLIC_EVENTS_WRITE_KEY=${PUBLIC_EVENTS_WRITE_KEY:-dev-key} astro dev",
